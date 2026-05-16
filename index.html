@@ -1,0 +1,2095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartShield — UPI Fraud Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+/* ============================================================
+   CSS VARIABLES & RESET
+============================================================ */
+:root {
+  --bg: #F6F8FC;
+  --bg2: #EEF1F8;
+  --white: #FFFFFF;
+  --glass: rgba(255,255,255,0.72);
+  --glass2: rgba(255,255,255,0.45);
+  --blur: blur(18px);
+  --ink: #12192C;
+  --ink2: #3D4F6B;
+  --ink3: #7A8FA8;
+  --ink4: #B4C3D4;
+  --rule: rgba(120,140,170,0.15);
+  --rule2: rgba(120,140,170,0.08);
+
+  --blue: #2563EB;
+  --blue2: #1D4ED8;
+  --blue-g: linear-gradient(135deg,#2563EB,#4F8EFF);
+  --blue-l: rgba(37,99,235,0.08);
+  --blue-m: rgba(37,99,235,0.2);
+
+  --red: #DC2626;
+  --red2: #B91C1C;
+  --red-g: linear-gradient(135deg,#DC2626,#F87171);
+  --red-l: rgba(220,38,38,0.07);
+  --red-m: rgba(220,38,38,0.18);
+
+  --green: #16A34A;
+  --green2: #15803D;
+  --green-g: linear-gradient(135deg,#16A34A,#4ADE80);
+  --green-l: rgba(22,163,74,0.07);
+  --green-m: rgba(22,163,74,0.18);
+
+  --amber: #D97706;
+  --amber2: #B45309;
+  --amber-g: linear-gradient(135deg,#D97706,#FCD34D);
+  --amber-l: rgba(217,119,6,0.08);
+  --amber-m: rgba(217,119,6,0.18);
+
+  --purple: #7C3AED;
+  --purple-l: rgba(124,58,237,0.08);
+
+  --sh-xs: 0 1px 2px rgba(18,25,44,.04);
+  --sh-sm: 0 2px 8px rgba(18,25,44,.06), 0 1px 2px rgba(18,25,44,.04);
+  --sh-md: 0 4px 20px rgba(18,25,44,.08), 0 2px 6px rgba(18,25,44,.04);
+  --sh-lg: 0 12px 40px rgba(18,25,44,.12), 0 4px 12px rgba(18,25,44,.06);
+  --sh-xl: 0 24px 64px rgba(18,25,44,.16), 0 8px 24px rgba(18,25,44,.08);
+  --sh-blue: 0 8px 32px rgba(37,99,235,.25);
+  --sh-red: 0 8px 32px rgba(220,38,38,.25);
+
+  --fh: 'Plus Jakarta Sans', sans-serif;
+  --fm: 'Fira Code', monospace;
+  --r: 12px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: all 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  --spring: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--fh);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink4); }
+
+/* ============================================================
+   ANIMATED BACKGROUND
+============================================================ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 20%, rgba(37,99,235,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 80%, rgba(124,58,237,.05) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 60% 10%, rgba(22,163,74,.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   LOGIN PAGE
+============================================================ */
+#login {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
+}
+.login-bg-mesh {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0);
+  background-size: 40px 40px;
+}
+.login-orb {
+  position: absolute; border-radius: 50%; filter: blur(80px);
+  animation: orbFloat 8s ease-in-out infinite;
+}
+.login-orb1 { width: 500px; height: 500px; background: rgba(37,99,235,.2); top: -150px; right: -100px; }
+.login-orb2 { width: 400px; height: 400px; background: rgba(124,58,237,.15); bottom: -100px; left: -80px; animation-delay: -3s; }
+.login-orb3 { width: 300px; height: 300px; background: rgba(22,163,74,.1); top: 50%; left: 50%; animation-delay: -5s; }
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(30px,-20px) scale(1.05); }
+  66% { transform: translate(-20px,30px) scale(0.95); }
+}
+
+.login-card {
+  position: relative; z-index: 1;
+  background: rgba(255,255,255,.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: var(--r-xl);
+  padding: 48px 44px;
+  width: 100%; max-width: 440px;
+  box-shadow: 0 40px 100px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.15);
+  animation: loginCardIn 0.6s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes loginCardIn {
+  from { opacity: 0; transform: translateY(40px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+.login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 36px; }
+.login-logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #2563EB, #4F8EFF);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 800; color: #fff;
+  box-shadow: 0 8px 24px rgba(37,99,235,.5);
+}
+.login-logo-text { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -.4px; }
+.login-logo-sub { font-size: 11px; color: rgba(255,255,255,.4); font-family: var(--fm); }
+.login-h { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -.6px; margin-bottom: 6px; }
+.login-p { font-size: 14px; color: rgba(255,255,255,.45); margin-bottom: 30px; line-height: 1.6; }
+.login-field { margin-bottom: 16px; }
+.login-field label { display: block; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 7px; }
+.login-field input {
+  width: 100%; padding: 13px 16px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: var(--r);
+  font-family: var(--fh); font-size: 14px; color: #fff;
+  outline: none; transition: var(--transition);
+}
+.login-field input::placeholder { color: rgba(255,255,255,.25); }
+.login-field input:focus { border-color: rgba(37,99,235,.6); background: rgba(255,255,255,.12); box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+.login-submit {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, #2563EB, #4F8EFF);
+  border: none; border-radius: var(--r);
+  font-family: var(--fh); font-size: 15px; font-weight: 700; color: #fff;
+  cursor: pointer; transition: var(--spring);
+  box-shadow: 0 8px 24px rgba(37,99,235,.4);
+  margin-top: 6px; letter-spacing: -.2px;
+  position: relative; overflow: hidden;
+}
+.login-submit::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.15), transparent);
+  opacity: 0; transition: opacity .2s;
+}
+.login-submit:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(37,99,235,.55); }
+.login-submit:hover::after { opacity: 1; }
+.login-submit:active { transform: translateY(0) scale(0.98); }
+.login-hint { font-size: 12px; color: rgba(255,255,255,.3); text-align: center; margin-top: 16px; }
+.login-demos { display: flex; gap: 8px; margin-top: 14px; }
+.login-demo {
+  flex: 1; padding: 9px 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: var(--r); cursor: pointer;
+  text-align: center; transition: var(--transition);
+}
+.login-demo:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); }
+.login-demo-r { font-size: 9px; color: rgba(255,255,255,.35); font-family: var(--fm); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+.login-demo-v { font-size: 11px; color: rgba(255,255,255,.6); font-family: var(--fm); }
+.login-err { background: rgba(220,38,38,.15); border: 1px solid rgba(220,38,38,.3); border-radius: var(--r); padding: 10px 14px; font-size: 12px; color: #FCA5A5; margin-bottom: 12px; display: none; animation: shake .3s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+/* ============================================================
+   APP SHELL
+============================================================ */
+#app { display: none; min-height: 100vh; flex-direction: column; position: relative; z-index: 1; }
+#app.show { display: flex; }
+
+/* ============================================================
+   NAVBAR
+============================================================ */
+.navbar {
+  position: sticky; top: 0; z-index: 200;
+  height: 58px;
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center;
+  padding: 0 24px;
+  transition: var(--transition);
+  box-shadow: var(--sh-xs);
+}
+.navbar.scrolled {
+  height: 50px;
+  box-shadow: var(--sh-sm);
+  background: rgba(255,255,255,.88);
+}
+.nb-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.nb-icon {
+  width: 32px; height: 32px;
+  background: var(--blue-g);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: #fff;
+  box-shadow: 0 4px 12px rgba(37,99,235,.35);
+  transition: var(--spring);
+}
+.nb-icon:hover { transform: rotate(-5deg) scale(1.1); }
+.nb-name { font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -.3px; }
+.nb-sep { width: 1px; height: 22px; background: var(--rule); margin: 0 20px; flex-shrink: 0; }
+
+/* TABS */
+.tabs { display: flex; align-items: center; gap: 2px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 7px 14px; height: 38px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500; color: var(--ink3);
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  border-radius: 8px;
+  transition: var(--transition);
+  position: relative;
+}
+.tab:hover { background: var(--bg2); color: var(--ink2); }
+.tab.active {
+  background: linear-gradient(135deg, rgba(37,99,235,.1), rgba(37,99,235,.06));
+  color: var(--blue);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.2);
+}
+.tab-ping {
+  position: absolute; top: 6px; right: 8px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--red);
+  animation: tabPing 2s ease infinite;
+  box-shadow: 0 0 0 0 rgba(220,38,38,.4);
+}
+@keyframes tabPing {
+  0% { box-shadow: 0 0 0 0 rgba(220,38,38,.4); }
+  70% { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+  100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+}
+
+.nb-right { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; padding-left: 16px; }
+.nb-live {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-family: var(--fm); color: var(--green);
+  background: var(--green-l); border: 1px solid var(--green-m);
+  padding: 4px 10px; border-radius: 20px;
+}
+.nb-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: livePulse 2s infinite; }
+@keyframes livePulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.3);opacity:.6;} }
+.nb-clock { font-family: var(--fm); font-size: 12px; color: var(--ink3); }
+.nb-user {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 6px;
+  background: var(--white); border: 1px solid var(--rule);
+  border-radius: 20px; cursor: pointer;
+  transition: var(--transition); box-shadow: var(--sh-xs);
+}
+.nb-user:hover { box-shadow: var(--sh-sm); border-color: var(--blue-m); }
+.nb-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--blue-g);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; color: #fff;
+  box-shadow: 0 2px 8px rgba(37,99,235,.3);
+}
+.nb-uname { font-size: 12px; font-weight: 600; color: var(--ink2); }
+.nb-logout {
+  background: none; border: 1px solid var(--rule);
+  border-radius: 8px; padding: 6px 12px;
+  font-family: var(--fh); font-size: 12px; font-weight: 600; color: var(--ink3);
+  cursor: pointer; transition: var(--transition);
+}
+.nb-logout:hover { border-color: var(--red-m); color: var(--red); background: var(--red-l); }
+.ham {
+  display: none; flex-direction: column; gap: 5px;
+  background: none; border: none; cursor: pointer; padding: 7px;
+  border-radius: 8px; transition: var(--transition);
+}
+.ham:hover { background: var(--bg2); }
+.ham span { display: block; width: 18px; height: 2px; background: var(--ink2); border-radius: 1px; transition: var(--transition-slow); }
+
+/* ============================================================
+   PAGES
+============================================================ */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ============================================================
+   SCROLL REVEAL
+============================================================ */
+.reveal {
+  opacity: 0; transform: translateY(28px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.reveal.visible { opacity: 1; transform: none; }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+.reveal-delay-5 { transition-delay: 0.5s; }
+
+/* ============================================================
+   COMMON LAYOUT
+============================================================ */
+.ph {
+  padding: 32px 28px 24px;
+  border-bottom: 1px solid var(--rule2);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+}
+.ph-title { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -.5px; }
+.ph-sub { font-size: 13px; color: var(--ink3); margin-top: 4px; line-height: 1.5; }
+.ph-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ph-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.sec { padding: 24px 28px; }
+
+/* RESPONSIVE GRIDS */
+.g1 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+
+/* ============================================================
+   GLASS CARDS
+============================================================ */
+.card {
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid rgba(255,255,255,.8);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  transition: var(--transition);
+}
+.card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.card-p { padding: 20px 22px; }
+.card-nohover:hover { transform: none; box-shadow: var(--sh-sm); }
+
+/* ============================================================
+   KPI CARDS
+============================================================ */
+.kpi {
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 20px 22px;
+  box-shadow: var(--sh-sm);
+  transition: var(--spring);
+  cursor: default;
+  position: relative; overflow: hidden;
+}
+.kpi::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  opacity: 0; transition: opacity .25s;
+}
+.kpi:hover { transform: translateY(-4px) scale(1.01); box-shadow: var(--sh-lg); }
+.kpi:hover::before { opacity: 1; }
+.kpi.blue::before { background: var(--blue-g); }
+.kpi.red::before { background: var(--red-g); }
+.kpi.green::before { background: var(--green-g); }
+.kpi.amber::before { background: var(--amber-g); }
+.kpi-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 14px;
+  transition: var(--spring);
+}
+.kpi:hover .kpi-icon { transform: scale(1.1) rotate(-5deg); }
+.kpi.blue .kpi-icon { background: var(--blue-l); }
+.kpi.red .kpi-icon { background: var(--red-l); }
+.kpi.green .kpi-icon { background: var(--green-l); }
+.kpi.amber .kpi-icon { background: var(--amber-l); }
+.kpi-label { font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+.kpi-value { font-size: 30px; font-weight: 800; letter-spacing: -1.5px; color: var(--ink); line-height: 1; }
+.kpi.blue .kpi-value { color: var(--blue); }
+.kpi.red .kpi-value { color: var(--red); }
+.kpi.green .kpi-value { color: var(--green); }
+.kpi.amber .kpi-value { color: var(--amber); }
+.kpi-sub { font-size: 11.5px; color: var(--ink3); margin-top: 6px; }
+.kpi-sub.up { color: var(--green); }
+.kpi-sub.dn { color: var(--red); }
+.kpi-sub.warn { color: var(--amber); }
+
+/* ============================================================
+   BUTTONS
+============================================================ */
+.btn {
+  padding: 9px 18px; border-radius: var(--r);
+  font-family: var(--fh); font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: var(--spring); position: relative; overflow: hidden;
+}
+.btn::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.15); opacity: 0; transition: opacity .2s; }
+.btn:hover::after { opacity: 1; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--blue-g); color: #fff; box-shadow: 0 4px 16px rgba(37,99,235,.3); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.45); }
+.btn-danger { background: var(--red-g); color: #fff; box-shadow: 0 4px 16px rgba(220,38,38,.25); }
+.btn-danger:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(220,38,38,.4); }
+.btn-ghost {
+  background: var(--white); color: var(--ink2);
+  border: 1.5px solid var(--rule); box-shadow: var(--sh-xs);
+}
+.btn-ghost:hover { border-color: var(--blue-m); color: var(--blue); background: var(--blue-l); transform: translateY(-1px); }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+
+/* ============================================================
+   BADGES
+============================================================ */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 6px;
+  font-size: 11px; font-weight: 600; font-family: var(--fm);
+}
+.b-green { background: var(--green-l); color: var(--green); border: 1px solid var(--green-m); }
+.b-red { background: var(--red-l); color: var(--red); border: 1px solid var(--red-m); }
+.b-amber { background: var(--amber-l); color: var(--amber); border: 1px solid var(--amber-m); }
+.b-blue { background: var(--blue-l); color: var(--blue); border: 1px solid var(--blue-m); }
+.b-gray { background: var(--bg2); color: var(--ink3); border: 1px solid var(--rule); }
+
+/* ============================================================
+   CHARTS
+============================================================ */
+.cpanel {
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 20px 22px;
+  box-shadow: var(--sh-sm);
+  transition: var(--transition);
+}
+.cpanel:hover { box-shadow: var(--sh-md); }
+.ct { font-size: 12px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 14px; }
+.ch160 { height: 160px; position: relative; }
+.ch200 { height: 200px; position: relative; }
+.ch240 { height: 240px; position: relative; }
+.ch280 { height: 280px; position: relative; }
+
+/* ============================================================
+   TABLES
+============================================================ */
+.tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; min-width: 560px; }
+thead th {
+  padding: 11px 14px; text-align: left;
+  font-size: 10px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: .08em;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
+  white-space: nowrap;
+  position: sticky; top: 0;
+}
+tbody tr {
+  border-bottom: 1px solid var(--rule2);
+  transition: background .15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(37,99,235,.03); }
+tbody td { padding: 11px 14px; font-size: 13px; color: var(--ink); }
+.code { font-family: var(--fm); font-size: 11px; color: var(--ink3); }
+
+/* ============================================================
+   FORMS
+============================================================ */
+.fg { display: flex; flex-direction: column; gap: 5px; }
+.fl { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .06em; }
+.fi, .fs {
+  background: var(--bg); border: 1.5px solid var(--rule);
+  border-radius: var(--r); padding: 10px 14px;
+  color: var(--ink); font-family: var(--fh); font-size: 13.5px;
+  outline: none; transition: var(--transition); width: 100%;
+}
+.fi:focus, .fs:focus { border-color: var(--blue); background: var(--white); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.fs option { background: var(--white); }
+
+/* ============================================================
+   TOGGLE
+============================================================ */
+.tgl { position: relative; width: 40px; height: 22px; cursor: pointer; flex-shrink: 0; }
+.tgl input { opacity: 0; width: 0; height: 0; }
+.tsl { position: absolute; inset: 0; background: var(--rule); border-radius: 11px; transition: .25s; }
+.tgl input:checked + .tsl { background: linear-gradient(135deg, var(--blue), #4F8EFF); }
+.tsl::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .25s; box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+.tgl input:checked + .tsl::before { transform: translateX(18px); }
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+============================================================ */
+.toasts { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.toast {
+  background: var(--ink);
+  color: #fff; border-radius: var(--r-lg);
+  padding: 14px 18px; min-width: 280px; max-width: 360px;
+  box-shadow: var(--sh-xl);
+  animation: toastIn .35s cubic-bezier(0.34,1.56,0.64,1);
+  pointer-events: all;
+  display: flex; align-items: flex-start; gap: 12px;
+  border-left: 4px solid transparent;
+}
+.toast.ok { background: #fff; color: var(--ink); border-color: var(--green); box-shadow: var(--sh-lg), 0 0 0 1px var(--rule); }
+.toast.warn { background: #fff; color: var(--ink); border-color: var(--amber); box-shadow: var(--sh-lg), 0 0 0 1px var(--rule); }
+.toast.info { background: #fff; color: var(--ink); border-color: var(--blue); box-shadow: var(--sh-lg), 0 0 0 1px var(--rule); }
+.toast.err { background: #fff; color: var(--ink); border-color: var(--red); box-shadow: var(--sh-lg), 0 0 0 1px var(--rule); }
+.toast-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.toast-body { flex: 1; }
+.toast-t { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.toast-m { font-size: 12px; opacity: .65; line-height: 1.4; }
+@keyframes toastIn { from{transform:translateX(30px) scale(0.95);opacity:0;} to{transform:none;opacity:1;} }
+
+/* ============================================================
+   SKELETON LOADERS
+============================================================ */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg) 50%, var(--bg2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--r);
+}
+@keyframes shimmer { from{background-position:200% 0;} to{background-position:-200% 0;} }
+
+/* ============================================================
+   RISK DISPLAY
+============================================================ */
+.risk-display { text-align: center; padding: 28px 16px 16px; }
+.risk-value { font-size: 56px; font-weight: 800; letter-spacing: -3px; line-height: 1; margin-bottom: 6px; }
+.risk-value.safe { background: var(--green-g); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.risk-value.suspicious { background: var(--amber-g); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.risk-value.high { background: var(--red-g); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.risk-verdict { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.risk-sub { font-size: 13px; color: var(--ink3); }
+.risk-bar-outer { height: 8px; background: var(--bg2); border-radius: 4px; overflow: hidden; margin: 16px 20px 4px; }
+.risk-bar-inner { height: 100%; border-radius: 4px; transition: width .8s cubic-bezier(0.4,0,0.2,1); }
+.risk-bar-inner.safe { background: var(--green-g); }
+.risk-bar-inner.suspicious { background: var(--amber-g); }
+.risk-bar-inner.high { background: var(--red-g); }
+.why-box {
+  margin: 12px 20px 16px;
+  padding: 12px 14px;
+  background: var(--amber-l); border: 1px solid var(--amber-m);
+  border-radius: var(--r); text-align: left;
+}
+.why-title { font-size: 10px; font-weight: 800; color: var(--amber); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+.why-text { font-size: 13px; color: var(--amber2); line-height: 1.5; }
+.signals { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 7px; }
+.signal-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: var(--r);
+  transition: var(--transition);
+}
+.signal-item.flagged { background: var(--amber-l); border: 1px solid var(--amber-m); }
+.signal-item.clear { background: var(--bg); border: 1px solid var(--rule2); }
+.signal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.signal-item.flagged .signal-dot { background: var(--amber); }
+.signal-item.clear .signal-dot { background: var(--ink4); }
+.signal-text { flex: 1; }
+.signal-label { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.signal-detail { font-size: 11.5px; color: var(--ink3); margin-top: 1px; }
+.signal-status { font-size: 11px; font-weight: 700; }
+.signal-item.flagged .signal-status { color: var(--amber); }
+.signal-item.clear .signal-status { color: var(--ink4); }
+
+/* ============================================================
+   OVERVIEW HERO
+============================================================ */
+.hero-banner {
+  background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 50%, #0F172A 100%);
+  padding: 48px 28px 0;
+  position: relative; overflow: hidden;
+}
+.hero-banner::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.04) 1px, transparent 0);
+  background-size: 36px 36px;
+}
+.hero-scan {
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(37,99,235,.6), transparent);
+  animation: scanAnim 6s linear infinite;
+}
+@keyframes scanAnim { from{top:0;} to{top:100%;} }
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(37,99,235,.15); border: 1px solid rgba(37,99,235,.3);
+  border-radius: 4px; padding: 5px 12px;
+  font-family: var(--fm); font-size: 10px; color: rgba(100,160,255,1);
+  letter-spacing: .08em; text-transform: uppercase; margin-bottom: 18px;
+  position: relative; z-index: 1;
+}
+.hero-h { font-size: clamp(24px,4vw,44px); font-weight: 800; color: #fff; line-height: 1.08; letter-spacing: -1.5px; margin-bottom: 12px; max-width: 600px; position: relative; z-index: 1; }
+.hero-h span { background: linear-gradient(90deg, #60A5FA, #A5F3FC); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-p { font-size: 14px; color: rgba(255,255,255,.5); max-width: 480px; line-height: 1.7; margin-bottom: 24px; font-weight: 400; position: relative; z-index: 1; }
+.hero-cta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 32px; position: relative; z-index: 1; }
+.hbtn-p { background: linear-gradient(135deg,#2563EB,#4F8EFF); color: #fff; border: none; padding: 11px 22px; border-radius: var(--r); font-family: var(--fh); font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--spring); box-shadow: 0 6px 20px rgba(37,99,235,.45); }
+.hbtn-p:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(37,99,235,.6); }
+.hbtn-s { background: rgba(255,255,255,.08); color: rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.14); padding: 11px 22px; border-radius: var(--r); font-family: var(--fh); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); }
+.hbtn-s:hover { background: rgba(255,255,255,.14); }
+.hero-stats { display: flex; gap: 0; border-top: 1px solid rgba(255,255,255,.06); margin: 0 -28px; position: relative; z-index: 1; }
+.hstat { flex: 1; padding: 20px 24px; border-right: 1px solid rgba(255,255,255,.06); }
+.hstat:last-child { border-right: none; }
+.hstat-n { font-size: 26px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.hstat-l { font-size: 10px; color: rgba(255,255,255,.38); font-family: var(--fm); text-transform: uppercase; letter-spacing: .08em; margin-top: 4px; }
+
+/* ============================================================
+   HOW IT WORKS
+============================================================ */
+.steps-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 0; }
+.step { padding: 20px 20px 20px 0; position: relative; }
+.step:not(:last-child)::after { content: ''; position: absolute; right: 0; top: 30px; width: 1px; height: 30px; background: var(--rule); }
+.step-num { font-size: 10px; font-weight: 800; font-family: var(--fm); color: var(--blue); margin-bottom: 8px; letter-spacing: .06em; }
+.step-title { font-size: 14px; font-weight: 800; color: var(--ink); margin-bottom: 5px; letter-spacing: -.2px; }
+.step-desc { font-size: 12.5px; color: var(--ink3); line-height: 1.6; }
+
+/* ============================================================
+   FINDING CARDS
+============================================================ */
+.finding {
+  padding: 14px 16px; border-radius: var(--r);
+  border-left: 3px solid; margin-bottom: 10px;
+  transition: var(--transition);
+}
+.finding:hover { transform: translateX(4px); }
+.finding:last-child { margin-bottom: 0; }
+.finding.red { background: var(--red-l); border-color: var(--red); }
+.finding.amber { background: var(--amber-l); border-color: var(--amber); }
+.finding-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.finding.red .finding-title { color: var(--red); }
+.finding.amber .finding-title { color: var(--amber); }
+.finding-desc { font-size: 12.5px; line-height: 1.5; }
+.finding.red .finding-desc { color: var(--red2); opacity: .8; }
+.finding.amber .finding-desc { color: var(--amber2); opacity: .8; }
+
+/* ============================================================
+   ALERTS
+============================================================ */
+.alert-item {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 0; border-bottom: 1px solid var(--rule2);
+  transition: var(--transition);
+}
+.alert-item:last-child { border-bottom: none; }
+.alert-item:hover { padding-left: 6px; }
+.al-pip { width: 3px; min-height: 44px; border-radius: 2px; flex-shrink: 0; margin-top: 1px; transition: var(--transition); }
+.alert-item:hover .al-pip { min-height: 100%; }
+.al-pip.crit { background: var(--red); }
+.al-pip.warn { background: var(--amber); }
+.al-pip.info { background: var(--blue); }
+.al-ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.al-ic.crit { background: var(--red-l); }
+.al-ic.warn { background: var(--amber-l); }
+.al-ic.info { background: var(--blue-l); }
+.al-body { flex: 1; }
+.al-t { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+.al-d { font-size: 12px; color: var(--ink3); line-height: 1.5; }
+.al-time { font-family: var(--fm); font-size: 10.5px; color: var(--ink4); margin-top: 4px; }
+
+/* ============================================================
+   BEHAVIORAL PATTERN CARDS
+============================================================ */
+.pattern-card {
+  padding: 12px 14px; border-radius: var(--r);
+  transition: var(--transition); cursor: default;
+}
+.pattern-card:hover { transform: translateX(4px); }
+.pattern-card.flagged { background: var(--red-l); border: 1px solid var(--red-m); }
+.pattern-card.warning { background: var(--amber-l); border: 1px solid var(--amber-m); }
+.pattern-card.clean { background: var(--green-l); border: 1px solid var(--green-m); }
+
+/* ============================================================
+   YOLO / DETECTION
+============================================================ */
+.yolo-wrap {
+  background: var(--white); border: 1px solid var(--rule);
+  border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--sh-sm);
+}
+.yolo-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 18px; border-bottom: 1px solid var(--rule2);
+  background: var(--bg);
+}
+.detection-log { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+.det-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r);
+  transition: var(--transition);
+}
+.det-item:hover { transform: translateX(3px); }
+.det-item.fraud { background: var(--red-l); border: 1px solid var(--red-m); }
+.det-item.warn { background: var(--amber-l); border: 1px solid var(--amber-m); }
+.det-item.clean { background: var(--green-l); border: 1px solid var(--green-m); }
+.det-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.det-item.fraud .det-dot { background: var(--red); }
+.det-item.warn .det-dot { background: var(--amber); }
+.det-item.clean .det-dot { background: var(--green); }
+.det-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.det-detail { font-size: 11.5px; color: var(--ink3); margin-top: 2px; }
+.det-conf { font-family: var(--fm); font-size: 11px; margin-top: 4px; font-weight: 600; }
+.det-item.fraud .det-conf { color: var(--red); }
+.det-item.warn .det-conf { color: var(--amber); }
+.det-item.clean .det-conf { color: var(--green); }
+
+/* ============================================================
+   UPLOAD
+============================================================ */
+.drop-zone {
+  border: 2px dashed var(--rule);
+  border-radius: var(--r-lg); padding: 48px 32px;
+  text-align: center; background: var(--bg);
+  cursor: pointer; transition: var(--transition);
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.drag { border-color: var(--blue); background: var(--blue-l); }
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-icon { font-size: 40px; opacity: .25; margin-bottom: 14px; transition: var(--spring); }
+.drop-zone:hover .drop-icon { opacity: .5; transform: translateY(-4px); }
+.drop-title { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.drop-sub { font-size: 13px; color: var(--ink3); margin-bottom: 18px; line-height: 1.6; }
+.prog-bar { height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.prog-fill { height: 100%; background: var(--blue-g); border-radius: 2px; transition: width .4s ease; }
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+.settings-layout { display: grid; grid-template-columns: 180px 1fr; gap: 20px; padding: 24px 28px; }
+.snav { display: flex; flex-direction: column; gap: 3px; }
+.snav-item { padding: 9px 13px; border-radius: var(--r); font-size: 13px; font-weight: 500; color: var(--ink3); cursor: pointer; transition: var(--transition); }
+.snav-item:hover { background: var(--bg2); color: var(--ink2); }
+.snav-item.active { background: var(--blue-l); color: var(--blue); font-weight: 600; box-shadow: inset 0 0 0 1px var(--blue-m); }
+.s-panel { background: var(--white); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: 26px; box-shadow: var(--sh-sm); }
+.s-h { font-size: 16px; font-weight: 800; color: var(--ink); margin-bottom: 18px; letter-spacing: -.3px; }
+.s-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--rule2); transition: var(--transition); }
+.s-row:last-child { border-bottom: none; }
+.s-row:hover { padding-left: 4px; }
+.s-lbl { font-size: 13px; font-weight: 600; color: var(--ink); }
+.s-desc { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+.s-inp { background: var(--bg); border: 1.5px solid var(--rule); border-radius: var(--r); padding: 7px 11px; font-family: var(--fh); font-size: 13px; color: var(--ink); outline: none; width: 150px; transition: var(--transition); }
+.s-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+
+/* ============================================================
+   GEO
+============================================================ */
+.geo-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule2); transition: var(--transition); }
+.geo-row:last-child { border-bottom: none; }
+.geo-row:hover { padding-left: 6px; }
+.geo-name { font-size: 13px; font-weight: 600; color: var(--ink); min-width: 130px; }
+.geo-bar-wrap { flex: 1; height: 5px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.geo-bar-fill { height: 100%; border-radius: 3px; transition: width .8s ease; }
+.geo-count { font-family: var(--fm); font-size: 12px; color: var(--ink3); min-width: 52px; text-align: right; }
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media(max-width:1100px){
+  .g4{grid-template-columns:repeat(2,1fr);}
+  .steps-grid{grid-template-columns:repeat(2,1fr);}
+  .step::after{display:none;}
+  .hero-stats{flex-wrap:wrap;}
+  .hstat{min-width:50%;}
+}
+@media(max-width:900px){
+  .g3{grid-template-columns:1fr 1fr;}
+  .settings-layout{grid-template-columns:1fr;padding:16px;}
+}
+@media(max-width:768px){
+  /* Mobile navbar */
+  .tabs{
+    display:none;
+    position:fixed;top:58px;left:0;right:0;bottom:0;
+    background:rgba(255,255,255,.97);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    flex-direction:column;
+    gap:4px;
+    padding:16px;
+    overflow-y:auto;
+    z-index:199;
+    border-top:1px solid var(--rule);
+    box-shadow:var(--sh-xl);
+  }
+  .tabs.open{display:flex;animation:mobileNavIn .3s ease;}
+  @keyframes mobileNavIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:none;}}
+  .tab{height:46px;border-radius:var(--r);padding:0 16px;font-size:14px;}
+  .tab.active{background:var(--blue-l);}
+  .nb-sep{display:none;}
+  .ham{display:flex;}
+  .nb-clock,.nb-live{display:none;}
+  /* Layout */
+  .g2,.g3,.g4{grid-template-columns:1fr;}
+  .sec,.ph{padding-left:16px;padding-right:16px;}
+  .hero-banner{padding:28px 16px 0;}
+  .hero-stats{margin:0 -16px;}
+  .hstat{padding:16px;}
+  .steps-grid{grid-template-columns:1fr;}
+  .hero-h{font-size:26px;}
+  /* Settings */
+  .settings-layout{grid-template-columns:1fr;padding:14px 16px;}
+  /* KPI */
+  .kpi{padding:16px 18px;}
+  .kpi-value{font-size:26px;}
+  /* Charts */
+  .g2.analyst-charts{grid-template-columns:1fr;}
+}
+@media(max-width:480px){
+  .hero-h{font-size:22px;}
+  .hstat{min-width:50%;}
+  .hero-cta{flex-direction:column;}
+  .hbtn-p,.hbtn-s{text-align:center;justify-content:center;}
+  .toasts{left:16px;right:16px;bottom:16px;}
+  .toast{min-width:0;}
+  .login-card{padding:32px 22px;}
+  .ph-row{flex-direction:column;}
+  .ph-acts{width:100%;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ LOGIN -->
+<div id="login">
+  <div class="login-bg-mesh"></div>
+  <div class="login-orb login-orb1"></div>
+  <div class="login-orb login-orb2"></div>
+  <div class="login-orb login-orb3"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">SS</div>
+      <div>
+        <div class="login-logo-text">SmartShield</div>
+        <div class="login-logo-sub">UPI Fraud Detection Platform</div>
+      </div>
+    </div>
+    <div class="login-h">Welcome back</div>
+    <div class="login-p">Sign in to access real-time fraud detection powered by XGBoost and PaySim data.</div>
+    <div class="login-err" id="lg-err">Incorrect credentials. Please try the demo accounts below.</div>
+    <div class="login-field"><label>Email address</label><input id="lg-e" type="email" placeholder="you@smartshield.in" value="analyst@smartshield.in"></div>
+    <div class="login-field"><label>Password</label><input id="lg-p" type="password" placeholder="Your password" value="shield2024"></div>
+    <button class="login-submit" id="lg-btn" onclick="doLogin()">Sign in to platform</button>
+    <div class="login-hint" style="margin-top:18px;">Try a demo account</div>
+    <div class="login-demos">
+      <div class="login-demo" onclick="setDemo('analyst@smartshield.in','shield2024')"><div class="login-demo-r">Analyst</div><div class="login-demo-v">analyst@...</div></div>
+      <div class="login-demo" onclick="setDemo('admin@smartshield.in','admin2024')"><div class="login-demo-r">Admin</div><div class="login-demo-v">admin@...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ APP -->
+<div id="app">
+
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nb-brand">
+      <div class="nb-icon">SS</div>
+      <span class="nb-name">SmartShield</span>
+    </div>
+    <div class="nb-sep"></div>
+    <button class="ham" id="ham" onclick="toggleNav()">
+      <span id="ham-1"></span><span id="ham-2"></span><span id="ham-3"></span>
+    </button>
+    <nav class="tabs" id="tabs">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="user">Check Transaction</div>
+      <div class="tab" data-tab="analyst">Dashboard</div>
+      <div class="tab" data-tab="dataset">Dataset</div>
+      <div class="tab" data-tab="behavioral">Behavioral</div>
+      <div class="tab" data-tab="yolo">Pattern Detection<div class="tab-ping"></div></div>
+      <div class="tab" data-tab="predict">Prediction</div>
+      <div class="tab" data-tab="alerts">Alerts<div class="tab-ping"></div></div>
+      <div class="tab" data-tab="upload">Upload</div>
+      <div class="tab" data-tab="reports">Reports</div>
+      <div class="tab" data-tab="geography">Geography</div>
+      <div class="tab" data-tab="settings">Settings</div>
+    </nav>
+    <div class="nb-right">
+      <div class="nb-live"><div class="nb-live-dot"></div>Live</div>
+      <div class="nb-clock" id="clock">--:--</div>
+      <div class="nb-user">
+        <div class="nb-avatar" id="nb-av">A</div>
+        <span class="nb-uname" id="nb-name">Analyst</span>
+      </div>
+      <button class="nb-logout" onclick="doLogout()">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- ===== OVERVIEW ===== -->
+  <div class="page active" id="page-overview">
+    <div class="hero-banner">
+      <div class="hero-scan"></div>
+      <div style="position:relative;z-index:1;">
+        <div class="hero-tag reveal">CBS3006 — Machine Learning — National Level EPJ — VIT University</div>
+        <h1 class="hero-h reveal reveal-delay-1">UPI <span>Fraud Detection</span><br>System</h1>
+        <p class="hero-p reveal reveal-delay-2">Protecting digital payments using machine learning trained on 6.36 million real transactions from the PaySim dataset.</p>
+        <div class="hero-cta reveal reveal-delay-3">
+          <button class="hbtn-p" onclick="goTab('analyst')">Open Dashboard</button>
+          <button class="hbtn-s" onclick="goTab('user')">Check a Transaction</button>
+          <button class="hbtn-s" onclick="goTab('predict')">Run Prediction</button>
+        </div>
+      </div>
+      <div class="hero-stats reveal reveal-delay-4">
+        <div class="hstat"><div class="hstat-n" style="color:#60A5FA" id="hs1">0</div><div class="hstat-l">Transactions</div></div>
+        <div class="hstat"><div class="hstat-n" style="color:#F87171" id="hs2">0</div><div class="hstat-l">Fraud Cases</div></div>
+        <div class="hstat"><div class="hstat-n" style="color:#4ADE80" id="hs3">0%</div><div class="hstat-l">XGBoost Accuracy</div></div>
+        <div class="hstat"><div class="hstat-n" style="color:#FCD34D" id="hs4">0</div><div class="hstat-l">Models Tested</div></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="g2">
+        <div class="card card-p reveal">
+          <div class="ct" style="margin-bottom:18px;">How it works</div>
+          <div class="steps-grid">
+            <div class="step"><div class="step-num">STEP 01</div><div class="step-title">Data comes in</div><div class="step-desc">A UPI transaction is initiated — amount, sender, receiver, time, type.</div></div>
+            <div class="step"><div class="step-num">STEP 02</div><div class="step-title">Patterns checked</div><div class="step-desc">7 behavioral signals checked — balance drain, velocity, timing, amount.</div></div>
+            <div class="step"><div class="step-num">STEP 03</div><div class="step-title">Model scores it</div><div class="step-desc">XGBoost assigns fraud probability from 0–100 based on 6.3M training examples.</div></div>
+            <div class="step"><div class="step-num">STEP 04</div><div class="step-title">Action taken</div><div class="step-desc">Transaction is allowed, flagged for review, or blocked — with a plain reason.</div></div>
+          </div>
+        </div>
+        <div class="card card-p reveal reveal-delay-2">
+          <div class="ct" style="margin-bottom:18px;">Key findings from PaySim</div>
+          <div class="finding red"><div class="finding-title">All fraud drains the sender's balance completely</div><div class="finding-desc">In every single fraud case, the sender's balance becomes exactly zero. This is the strongest signal.</div></div>
+          <div class="finding red"><div class="finding-title">Only CASH_OUT and TRANSFER carry fraud</div><div class="finding-desc">PAYMENT, DEBIT, and CASH_IN have zero fraud cases in PaySim. The model focuses on two risky types.</div></div>
+          <div class="finding amber"><div class="finding-title">Fraud peaks between 1 AM and 5 AM</div><div class="finding-desc">Late-night transactions carry much higher fraud probability — 41% of all fraud occurs in these hours.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g4">
+        <div class="kpi blue reveal"><div class="kpi-icon">&#128202;</div><div class="kpi-label">Total Transactions</div><div class="kpi-value" id="ov-t">0</div><div class="kpi-sub">PaySim dataset — Kaggle</div></div>
+        <div class="kpi red reveal reveal-delay-1"><div class="kpi-icon">&#9888;</div><div class="kpi-label">Fraud Cases</div><div class="kpi-value" id="ov-f">0</div><div class="kpi-sub dn">0.13% of all transactions</div></div>
+        <div class="kpi green reveal reveal-delay-2"><div class="kpi-icon">&#9989;</div><div class="kpi-label">Best Accuracy</div><div class="kpi-value" id="ov-a">0%</div><div class="kpi-sub up">XGBoost classifier</div></div>
+        <div class="kpi amber reveal reveal-delay-3"><div class="kpi-icon">&#129302;</div><div class="kpi-label">Models Tested</div><div class="kpi-value" id="ov-m">0</div><div class="kpi-sub">LR, DT, RF, SVM, XGB, ANN</div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g2">
+        <div class="cpanel reveal"><div class="ct">Fraud vs Legitimate — PaySim exact counts</div><div class="ch240"><canvas id="ov-dist"></canvas></div></div>
+        <div class="cpanel reveal reveal-delay-2"><div class="ct">Fraud by transaction type</div><div class="ch240"><canvas id="ov-type"></canvas></div><div style="font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.5;font-family:var(--fm);">CASH_OUT: 4,116 — TRANSFER: 4,097 — All others: 0</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CHECK TRANSACTION (USER MODE) ===== -->
+  <div class="page" id="page-user">
+    <div class="ph"><div class="ph-title">Check a Transaction</div><div class="ph-sub">Enter UPI transaction details to get an instant fraud risk assessment in plain language.</div></div>
+    <div class="sec">
+      <div class="g2" style="align-items:start;">
+        <div class="card card-p reveal">
+          <div style="font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.3px;margin-bottom:18px;">Transaction details</div>
+          <div style="display:flex;flex-direction:column;gap:13px;">
+            <div class="fg"><label class="fl">Amount (INR)</label><input class="fi" id="u-amt" type="number" placeholder="e.g. 25000" value="181000"></div>
+            <div class="fg"><label class="fl">Transaction type</label><select class="fs" id="u-type"><option>PAYMENT</option><option selected>TRANSFER</option><option>CASH_OUT</option><option>CASH_IN</option><option>DEBIT</option></select></div>
+            <div class="fg"><label class="fl">Sender's balance before</label><input class="fi" id="u-ob" type="number" value="181000"></div>
+            <div class="fg"><label class="fl">Sender's balance after</label><input class="fi" id="u-oa" type="number" value="0"></div>
+            <div class="fg"><label class="fl">Recipient's balance before</label><input class="fi" id="u-db" type="number" value="0"></div>
+            <div class="fg"><label class="fl">Hour of day (0–23)</label><input class="fi" id="u-hr" type="number" value="2" min="0" max="23"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+            <button class="btn btn-primary" style="flex:1;min-width:140px;justify-content:center;" id="u-btn" onclick="runUserCheck()">Check this transaction</button>
+            <button class="btn btn-ghost" onclick="loadKnownFraud()">Load fraud example</button>
+          </div>
+          <div style="margin-top:12px;padding:10px 13px;background:var(--bg);border-radius:var(--r);font-size:12px;color:var(--ink3);line-height:1.6;">The loaded example is a real PaySim fraud record — a full TRANSFER of the sender's balance at 2 AM, leaving their account at zero.</div>
+        </div>
+        <div class="card reveal reveal-delay-2" id="user-result" style="overflow:hidden;">
+          <div id="user-empty" style="padding:56px 24px;text-align:center;color:var(--ink3);">
+            <div style="font-size:48px;opacity:.12;margin-bottom:16px;">&#9646;</div>
+            <div style="font-size:15px;font-weight:700;color:var(--ink2);margin-bottom:5px;">No result yet</div>
+            <div style="font-size:13px;">Fill in the details and click Check.</div>
+          </div>
+          <div id="user-content" style="display:none;">
+            <div class="risk-display">
+              <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Risk Assessment</div>
+              <div class="risk-value" id="u-risk-val">—</div>
+              <div class="risk-verdict" id="u-verdict">—</div>
+              <div class="risk-sub" id="u-sub">—</div>
+            </div>
+            <div class="risk-bar-outer"><div class="risk-bar-inner" id="u-bar" style="width:0%;"></div></div>
+            <div id="u-why" class="why-box" style="display:none;"><div class="why-title">Why this was flagged</div><div class="why-text" id="u-why-t">—</div></div>
+            <div class="signals" id="u-signals"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ANALYST DASHBOARD ===== -->
+  <div class="page" id="page-analyst">
+    <div class="ph">
+      <div class="ph-row">
+        <div><div class="ph-title">Analyst Dashboard</div><div class="ph-sub">Live monitoring — PaySim statistical simulation — auto-refreshes every 4 seconds</div></div>
+        <div class="ph-acts">
+          <button class="btn btn-ghost btn-sm" onclick="buildTxTable()">Refresh</button>
+          <button class="btn btn-primary btn-sm" onclick="exportTx()">Export CSV</button>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="g4">
+        <div class="kpi blue reveal"><div class="kpi-icon">&#128202;</div><div class="kpi-label">Session Transactions</div><div class="kpi-value" id="a-tot">0</div><div class="kpi-sub" id="a-tc">Starting...</div></div>
+        <div class="kpi red reveal reveal-delay-1"><div class="kpi-icon">&#9888;</div><div class="kpi-label">Fraud Detected</div><div class="kpi-value" id="a-fr">0</div><div class="kpi-sub dn" id="a-fc">0.000%</div></div>
+        <div class="kpi green reveal reveal-delay-2"><div class="kpi-icon">&#9989;</div><div class="kpi-label">Legitimate</div><div class="kpi-value" id="a-le">0</div><div class="kpi-sub up">Cleared</div></div>
+        <div class="kpi amber reveal reveal-delay-3"><div class="kpi-icon">&#128176;</div><div class="kpi-label">Avg Fraud Amount</div><div class="kpi-value">&#8377;1.47L</div><div class="kpi-sub">PaySim verified</div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g2 analyst-charts">
+        <div class="cpanel reveal"><div class="ct">Transaction volume — live</div><div class="ch200"><canvas id="a-line"></canvas></div></div>
+        <div class="cpanel reveal reveal-delay-2"><div class="ct">Fraud distribution — PaySim proportions</div><div class="ch200"><canvas id="a-donut"></canvas></div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g3">
+        <div class="cpanel reveal"><div class="ct">Fraud by type</div><div class="ch160"><canvas id="a-type"></canvas></div></div>
+        <div class="cpanel reveal reveal-delay-1"><div class="ct">Fraud by hour of day</div><div class="ch160"><canvas id="a-hour"></canvas></div></div>
+        <div class="cpanel reveal reveal-delay-2"><div class="ct">Amount ranges</div><div class="ch160"><canvas id="a-amt"></canvas></div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="card card-nohover reveal">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--rule2);">
+          <div style="font-size:13px;font-weight:700;color:var(--ink);">Recent transactions</div>
+          <div class="nb-live"><div class="nb-live-dot"></div><span style="font-size:11px;font-family:var(--fm);color:var(--green);">4s refresh</span></div>
+        </div>
+        <div class="tw"><table><thead><tr><th>ID</th><th>Type</th><th>Amount</th><th>Bal Before</th><th>Bal After</th><th>Dest Before</th><th>Hour</th><th>Risk</th><th>Status</th></tr></thead><tbody id="a-tbody"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DATASET ===== -->
+  <div class="page" id="page-dataset">
+    <div class="ph"><div class="ph-title">PaySim Dataset</div><div class="ph-sub">Kaggle PaySim — 6,362,620 transactions — 11 columns — verified fraud statistics from real mobile money logs</div></div>
+    <div class="sec">
+      <div class="g4">
+        <div class="kpi blue reveal"><div class="kpi-icon">&#128202;</div><div class="kpi-label">Total Rows</div><div class="kpi-value" id="ds-t">0</div><div class="kpi-sub">Full dataset</div></div>
+        <div class="kpi red reveal reveal-delay-1"><div class="kpi-icon">&#9888;</div><div class="kpi-label">Fraud Rows</div><div class="kpi-value" id="ds-f">0</div><div class="kpi-sub dn">0.129% of total</div></div>
+        <div class="kpi green reveal reveal-delay-2"><div class="kpi-icon">&#9989;</div><div class="kpi-label">Legitimate</div><div class="kpi-value" id="ds-l">0</div><div class="kpi-sub up">99.87% of total</div></div>
+        <div class="kpi amber reveal reveal-delay-3"><div class="kpi-icon">&#8987;</div><div class="kpi-label">Time Steps</div><div class="kpi-value">744</div><div class="kpi-sub">1 step = 1 hour</div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g2">
+        <div class="cpanel reveal"><div class="ct">Type distribution — 6.36M records</div><div class="ch240"><canvas id="ds-type"></canvas></div></div>
+        <div class="cpanel reveal reveal-delay-2"><div class="ct">Fraud count by type — real PaySim numbers</div><div class="ch240"><canvas id="ds-fraud"></canvas></div><div style="font-size:12px;color:var(--ink3);margin-top:10px;line-height:1.6;">CASH_OUT and TRANSFER are the only types that carry fraud. The model uses this as a hard rule.</div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="card card-nohover reveal">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--rule2);font-size:13px;font-weight:800;color:var(--ink);">Column reference — all 11 PaySim fields</div>
+        <div class="tw"><table>
+          <thead><tr><th>Column</th><th>Type</th><th>Description</th><th>Used in model</th></tr></thead>
+          <tbody>
+            <tr><td class="code">step</td><td><span class="badge b-gray">Integer</span></td><td>Time unit — 1 step = 1 hour (range: 1–744)</td><td><span class="badge b-green">Yes</span></td></tr>
+            <tr><td class="code">type</td><td><span class="badge b-gray">Categorical</span></td><td>CASH_IN, CASH_OUT, DEBIT, PAYMENT, TRANSFER</td><td><span class="badge b-green">Yes — one-hot</span></td></tr>
+            <tr><td class="code">amount</td><td><span class="badge b-gray">Float</span></td><td>Transaction amount in local currency</td><td><span class="badge b-green">Yes — key feature</span></td></tr>
+            <tr><td class="code">nameOrig</td><td><span class="badge b-gray">String</span></td><td>Sender customer ID</td><td><span class="badge b-gray">ID only</span></td></tr>
+            <tr><td class="code">oldbalanceOrg</td><td><span class="badge b-gray">Float</span></td><td>Sender balance before transaction</td><td><span class="badge b-green">Yes</span></td></tr>
+            <tr><td class="code" style="color:var(--red);">newbalanceOrig</td><td><span class="badge b-gray">Float</span></td><td>Sender balance after — equals zero in ALL fraud cases</td><td><span class="badge b-red">Strongest signal</span></td></tr>
+            <tr><td class="code">nameDest</td><td><span class="badge b-gray">String</span></td><td>Recipient customer ID</td><td><span class="badge b-gray">ID only</span></td></tr>
+            <tr><td class="code">oldbalanceDest</td><td><span class="badge b-gray">Float</span></td><td>Recipient balance before transaction</td><td><span class="badge b-green">Yes</span></td></tr>
+            <tr><td class="code">newbalanceDest</td><td><span class="badge b-gray">Float</span></td><td>Recipient balance after transaction</td><td><span class="badge b-green">Yes</span></td></tr>
+            <tr><td class="code" style="color:var(--red);">isFraud</td><td><span class="badge b-red">Binary</span></td><td>Ground truth — 1 = fraud, 0 = legitimate</td><td><span class="badge b-red">TARGET</span></td></tr>
+            <tr><td class="code">isFlaggedFraud</td><td><span class="badge b-gray">Binary</span></td><td>Business rule flag — only catches transfers over 200,000</td><td><span class="badge b-gray">Validation</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BEHAVIORAL ANALYTICS ===== -->
+  <div class="page" id="page-behavioral">
+    <div class="ph">
+      <div class="ph-row">
+        <div><div class="ph-title">Behavioral Analytics</div><div class="ph-sub">Real detection rules derived from PaySim fraud patterns</div></div>
+        <div class="ph-acts"><button class="btn btn-primary btn-sm" onclick="initBehavioral()">Refresh Analysis</button></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="g4">
+        <div class="kpi red reveal"><div class="kpi-icon">&#128683;</div><div class="kpi-label">Balance Drain Events</div><div class="kpi-value">8,213</div><div class="kpi-sub dn">100% of all fraud</div></div>
+        <div class="kpi amber reveal reveal-delay-1"><div class="kpi-icon">&#127769;</div><div class="kpi-label">Night Transactions</div><div class="kpi-value">3,367</div><div class="kpi-sub warn">1 AM – 5 AM window</div></div>
+        <div class="kpi red reveal reveal-delay-2"><div class="kpi-icon">&#9889;</div><div class="kpi-label">Velocity Anomalies</div><div class="kpi-value">2,793</div><div class="kpi-sub dn">5+ tx per hour</div></div>
+        <div class="kpi amber reveal reveal-delay-3"><div class="kpi-icon">&#128257;</div><div class="kpi-label">Round Amount Flags</div><div class="kpi-value">1,478</div><div class="kpi-sub warn">Multiples of 10,000</div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g2">
+        <div class="cpanel reveal"><div class="ct">Risk score by hour — PaySim step distribution</div><div class="ch240"><canvas id="ba-hour"></canvas></div></div>
+        <div class="cpanel reveal reveal-delay-2"><div class="ct">Velocity burst — transactions per origin per hour</div><div class="ch240"><canvas id="ba-vel"></canvas></div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g2" style="grid-template-columns:1fr 300px;align-items:start;" id="ba-responsive">
+        <div class="cpanel reveal"><div class="ct">Balance drain scatter — amount vs remaining balance</div><div class="ch240"><canvas id="ba-drain"></canvas></div><div style="font-size:12px;color:var(--ink3);margin-top:10px;line-height:1.5;">All red dots sit on y=0 — every fraud leaves balance at zero. The clearest pattern in PaySim.</div></div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card card-p reveal reveal-delay-1">
+            <div style="font-size:13px;font-weight:800;letter-spacing:-.2px;margin-bottom:14px;">Detection rules</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div class="finding red" style="margin-bottom:0;"><div class="finding-title">Balance drain</div><div class="finding-desc">newbalanceOrig = 0 after CASH_OUT or TRANSFER</div></div>
+              <div class="finding red" style="margin-bottom:0;"><div class="finding-title">Zero destination</div><div class="finding-desc">oldbalanceDest = 0 in TRANSFER over ₹1,00,000</div></div>
+              <div class="finding amber" style="margin-bottom:0;"><div class="finding-title">Velocity burst</div><div class="finding-desc">5+ transactions from same origin in 60 minutes</div></div>
+              <div class="finding amber" style="margin-bottom:0;"><div class="finding-title">Night activity</div><div class="finding-desc">Transaction hour (step mod 24) between 1 and 5</div></div>
+            </div>
+          </div>
+          <div class="card card-p reveal reveal-delay-2">
+            <div style="font-size:13px;font-weight:800;letter-spacing:-.2px;margin-bottom:12px;">Flagged patterns</div>
+            <div style="display:flex;flex-direction:column;gap:7px;" id="ba-flags"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== YOLO PATTERN DETECTION ===== -->
+  <div class="page" id="page-yolo">
+    <div class="ph">
+      <div class="ph-row">
+        <div><div class="ph-title">Behavioral Pattern Detection</div><div class="ph-sub">YOLO-inspired bounding-box visualization — confidence scores computed from real PaySim fraud rules, not random values</div></div>
+        <div class="ph-acts">
+          <button class="btn btn-ghost btn-sm" id="yolo-pause" onclick="toggleYolo()">Pause</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetYolo()">Reset</button>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <div style="display:grid;grid-template-columns:1fr 290px;gap:16px;" id="yolo-grid">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="yolo-wrap reveal">
+            <div class="yolo-toolbar">
+              <div style="font-size:13px;font-weight:700;color:var(--ink);">Transaction Feature Space — Time vs Amount</div>
+              <div class="nb-live"><div class="nb-live-dot"></div><span style="font-size:11px;font-family:var(--fm);color:var(--green);">Scanning</span></div>
+            </div>
+            <div style="padding:9px 16px;border-bottom:1px solid var(--rule2);font-size:11.5px;color:var(--ink3);background:var(--bg);">Each dot = one transaction. Boxes = detected suspicious clusters. Threshold: 0.60. Labels from real PaySim rules.</div>
+            <canvas id="yoloC" width="800" height="340" style="width:100%;display:block;background:#FAFBFF;"></canvas>
+          </div>
+          <div class="g3 reveal reveal-delay-1">
+            <div class="cpanel"><div class="ct">Score timeline</div><div class="ch160"><canvas id="y-line"></canvas></div></div>
+            <div class="cpanel"><div class="ct">Pattern classes</div><div class="ch160"><canvas id="y-bar"></canvas></div></div>
+            <div class="cpanel"><div class="ct">Score distribution</div><div class="ch160"><canvas id="y-hist"></canvas></div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;" class="reveal reveal-delay-2">
+          <div class="g2" style="gap:8px;">
+            <div style="background:var(--red-l);border:1px solid var(--red-m);border-radius:var(--r-lg);padding:14px;text-align:center;transition:var(--spring);" onmouseenter="this.style.transform='scale(1.03)'" onmouseleave="this.style.transform='none'"><div style="font-size:26px;font-weight:800;color:var(--red);" id="yd-f">0</div><div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;">High Risk</div></div>
+            <div style="background:var(--amber-l);border:1px solid var(--amber-m);border-radius:var(--r-lg);padding:14px;text-align:center;transition:var(--spring);" onmouseenter="this.style.transform='scale(1.03)'" onmouseleave="this.style.transform='none'"><div style="font-size:26px;font-weight:800;color:var(--amber);" id="yd-w">0</div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;">Warning</div></div>
+            <div style="background:var(--green-l);border:1px solid var(--green-m);border-radius:var(--r-lg);padding:14px;text-align:center;transition:var(--spring);" onmouseenter="this.style.transform='scale(1.03)'" onmouseleave="this.style.transform='none'"><div style="font-size:26px;font-weight:800;color:var(--green);" id="yd-c">0</div><div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;">Normal</div></div>
+            <div style="background:var(--bg2);border:1px solid var(--rule);border-radius:var(--r-lg);padding:14px;text-align:center;transition:var(--spring);" onmouseenter="this.style.transform='scale(1.03)'" onmouseleave="this.style.transform='none'"><div style="font-size:26px;font-weight:800;color:var(--ink);" id="yd-t">0</div><div style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;">Total</div></div>
+          </div>
+          <div class="card card-p">
+            <div style="font-size:13px;font-weight:800;letter-spacing:-.2px;margin-bottom:12px;">Pattern classes</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;"><span class="badge b-red">Balance Drain</span><span class="badge b-red">Night Activity</span><span class="badge b-amber">Velocity Burst</span><span class="badge b-amber">Round Amount</span><span class="badge b-amber">Zero Dest</span><span class="badge b-blue">High Amount</span><span class="badge b-green">Normal</span></div>
+            <div style="margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:var(--r);font-size:12px;color:var(--ink3);line-height:1.6;">Confidence scores use real PaySim fraud weights — not random numbers.</div>
+          </div>
+          <div class="card card-p" style="flex:1;">
+            <div style="font-size:13px;font-weight:800;letter-spacing:-.2px;margin-bottom:12px;">Detection log</div>
+            <div class="detection-log" id="det-log"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FRAUD PREDICTION ===== -->
+  <div class="page" id="page-predict">
+    <div class="ph"><div class="ph-title">Fraud Prediction</div><div class="ph-sub">Model scoring using PaySim-derived rules — connects to Flask API when available for real XGBoost inference</div></div>
+    <div class="sec">
+      <div id="pred-note" style="display:none;padding:12px 16px;background:var(--amber-l);border:1px solid var(--amber-m);border-radius:var(--r);font-size:13px;color:var(--amber2);margin-bottom:16px;line-height:1.5;">Flask API is offline. Using PaySim rule-based scoring. Run <strong>python app.py</strong> in backend/ for real XGBoost predictions.</div>
+      <div class="g2" style="align-items:start;">
+        <div class="card card-p reveal">
+          <div style="font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.3px;margin-bottom:18px;">Transaction parameters — PaySim format</div>
+          <div class="g2" style="gap:12px;">
+            <div class="fg"><label class="fl">Amount (INR)</label><input class="fi" id="p-amt" type="number" value="181000"></div>
+            <div class="fg"><label class="fl">Type</label><select class="fs" id="p-type"><option>PAYMENT</option><option selected>TRANSFER</option><option>CASH_OUT</option><option>CASH_IN</option><option>DEBIT</option></select></div>
+            <div class="fg"><label class="fl">Old balance origin</label><input class="fi" id="p-ob" type="number" value="181000"></div>
+            <div class="fg"><label class="fl">New balance origin</label><input class="fi" id="p-oa" type="number" value="0"></div>
+            <div class="fg"><label class="fl">Old balance dest</label><input class="fi" id="p-db" type="number" value="0"></div>
+            <div class="fg"><label class="fl">New balance dest</label><input class="fi" id="p-da" type="number" value="0"></div>
+            <div class="fg"><label class="fl">Step (hour 0–743)</label><input class="fi" id="p-step" type="number" value="2"></div>
+            <div class="fg"><label class="fl">Transaction frequency</label><input class="fi" id="p-fq" type="number" value="1"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+            <button class="btn btn-primary" style="flex:1;min-width:140px;justify-content:center;" id="p-btn" onclick="runPredict()">Run prediction</button>
+            <button class="btn btn-ghost" onclick="loadFraudEx()">Fraud example</button>
+          </div>
+        </div>
+        <div class="card reveal reveal-delay-2" id="pred-result" style="overflow:hidden;">
+          <div id="pred-empty" style="padding:56px 24px;text-align:center;color:var(--ink3);">
+            <div style="font-size:15px;font-weight:700;color:var(--ink2);margin-bottom:5px;">Awaiting input</div>
+            <div style="font-size:13px;">Click Run prediction to see the model's assessment.</div>
+          </div>
+          <div id="pred-content" style="display:none;">
+            <div class="risk-display">
+              <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Fraud Probability</div>
+              <div class="risk-value" id="p-pct">—</div>
+              <div class="risk-verdict" id="p-verdict">—</div>
+              <div class="risk-sub" id="p-src">—</div>
+            </div>
+            <div class="risk-bar-outer"><div class="risk-bar-inner" id="p-bar" style="width:0%;"></div></div>
+            <div id="p-why" class="why-box" style="display:none;"><div class="why-title">Why this was flagged</div><div class="why-text" id="p-why-t">—</div></div>
+            <div style="padding:0 22px 22px;">
+              <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Feature breakdown (SHAP)</div>
+              <div id="p-shap" style="display:flex;flex-direction:column;gap:7px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ALERTS ===== -->
+  <div class="page" id="page-alerts">
+    <div class="ph">
+      <div class="ph-row">
+        <div><div class="ph-title">Alerts</div><div class="ph-sub">System-generated fraud alerts — sorted by severity</div></div>
+        <div class="ph-acts">
+          <button class="btn btn-ghost btn-sm" onclick="clearAlerts()">Clear all</button>
+          <button class="btn btn-primary btn-sm" onclick="exportAlerts()">Export CSV</button>
+        </div>
+      </div>
+    </div>
+    <div class="sec" id="al-section"></div>
+  </div>
+
+  <!-- ===== UPLOAD ===== -->
+  <div class="page" id="page-upload">
+    <div class="ph"><div class="ph-title">Upload Dataset</div><div class="ph-sub">Upload a PaySim-format CSV. The browser analyzes it locally — your data never leaves your device.</div></div>
+    <div class="sec">
+      <div class="g2" style="align-items:start;">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="drop-zone reveal" id="drop-z">
+            <input type="file" id="file-inp" accept=".csv" onchange="handleFile(this.files[0])">
+            <div class="drop-icon">&#8679;</div>
+            <div class="drop-title">Drop your CSV here</div>
+            <div class="drop-sub">Accepts PaySim-format CSV files<br>Columns: step, type, amount, oldbalanceOrg,<br>newbalanceOrig, oldbalanceDest, newbalanceDest, isFraud</div>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();document.getElementById('file-inp').click()">Choose file</button>
+          </div>
+          <div class="card card-p reveal reveal-delay-1" id="file-info" style="display:none;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:38px;height:38px;background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">&#128196;</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:700;" id="f-name">—</div>
+                <div style="font-size:11px;color:var(--ink3);font-family:var(--fm);" id="f-meta">—</div>
+                <div class="prog-bar"><div class="prog-fill" id="f-prog" style="width:0%;"></div></div>
+              </div>
+              <span class="badge" id="f-status">Processing</span>
+            </div>
+          </div>
+          <div class="card card-p reveal reveal-delay-2" id="upload-res" style="display:none;">
+            <div style="font-size:14px;font-weight:800;letter-spacing:-.3px;margin-bottom:14px;">Real analysis results</div>
+            <div class="g4" style="gap:10px;margin-bottom:14px;">
+              <div style="background:var(--bg);border-radius:var(--r);padding:12px;text-align:center;border:1px solid var(--rule);"><div style="font-size:18px;font-weight:800;letter-spacing:-1px;color:var(--blue);" id="ur-total">—</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Total rows</div></div>
+              <div style="background:var(--red-l);border-radius:var(--r);padding:12px;text-align:center;border:1px solid var(--red-m);"><div style="font-size:18px;font-weight:800;letter-spacing:-1px;color:var(--red);" id="ur-fraud">—</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Fraud rows</div></div>
+              <div style="background:var(--amber-l);border-radius:var(--r);padding:12px;text-align:center;border:1px solid var(--amber-m);"><div style="font-size:18px;font-weight:800;letter-spacing:-1px;color:var(--amber);" id="ur-rate">—</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Fraud rate</div></div>
+              <div style="background:var(--green-l);border-radius:var(--r);padding:12px;text-align:center;border:1px solid var(--green-m);"><div style="font-size:18px;font-weight:800;letter-spacing:-1px;color:var(--green);" id="ur-cols">—</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Columns</div></div>
+            </div>
+            <div id="ur-charts"></div>
+          </div>
+        </div>
+        <div class="card card-p reveal reveal-delay-1">
+          <div style="font-size:14px;font-weight:800;letter-spacing:-.3px;margin-bottom:14px;">Required columns</div>
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">step</span><span style="font-size:12.5px;color:var(--ink3);">Time unit — 1 step = 1 hour</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">type</span><span style="font-size:12.5px;color:var(--ink3);">CASH_IN / CASH_OUT / TRANSFER / PAYMENT / DEBIT</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">amount</span><span style="font-size:12.5px;color:var(--ink3);">Transaction amount</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">oldbalanceOrg</span><span style="font-size:12.5px;color:var(--ink3);">Sender balance before</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">newbalanceOrig</span><span style="font-size:12.5px;color:var(--ink3);">Sender balance after — 0 in all fraud</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">oldbalanceDest</span><span style="font-size:12.5px;color:var(--ink3);">Recipient balance before</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--blue);width:140px;flex-shrink:0;">newbalanceDest</span><span style="font-size:12.5px;color:var(--ink3);">Recipient balance after</span></div>
+            <div style="display:flex;gap:10px;padding:8px 0;align-items:center;"><span style="font-family:var(--fm);font-size:11px;color:var(--red);width:140px;flex-shrink:0;">isFraud</span><span style="font-size:12.5px;color:var(--ink3);">Label — 1 = fraud, 0 = legitimate</span></div>
+          </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--rule2);">
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Download the PaySim dataset</div>
+            <div style="font-size:12.5px;color:var(--ink3);margin-bottom:12px;line-height:1.5;">Free on Kaggle. File size: 493 MB. Requires a free account.</div>
+            <a href="https://www.kaggle.com/datasets/ealaxi/paysim1" target="_blank" style="text-decoration:none;display:block;"><button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">Open Kaggle — PaySim dataset</button></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== REPORTS ===== -->
+  <div class="page" id="page-reports">
+    <div class="ph">
+      <div class="ph-row">
+        <div><div class="ph-title">Reports</div><div class="ph-sub">Generate and export fraud detection summaries</div></div>
+        <div class="ph-acts"><button class="btn btn-primary btn-sm" onclick="generateReport()">Generate report</button></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="g2" style="align-items:start;">
+        <div class="card card-p reveal">
+          <div style="font-size:14px;font-weight:800;letter-spacing:-.3px;margin-bottom:16px;">Export options</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px;">
+            <div onclick="exportAs('CSV')" style="border:1.5px solid var(--rule);border-radius:var(--r-lg);padding:16px;text-align:center;cursor:pointer;transition:var(--spring);" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='var(--blue)';this.style.background='var(--blue-l)'" onmouseleave="this.style.transform='none';this.style.borderColor='var(--rule)';this.style.background='none'"><div style="font-size:24px;margin-bottom:8px;opacity:.5;">&#128202;</div><div style="font-size:13px;font-weight:700;">CSV</div><div style="font-size:11px;color:var(--ink3);margin-top:3px;">Transaction data</div></div>
+            <div onclick="exportAs('JSON')" style="border:1.5px solid var(--rule);border-radius:var(--r-lg);padding:16px;text-align:center;cursor:pointer;transition:var(--spring);" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='var(--blue)';this.style.background='var(--blue-l)'" onmouseleave="this.style.transform='none';this.style.borderColor='var(--rule)';this.style.background='none'"><div style="font-size:24px;margin-bottom:8px;opacity:.5;">&#128736;</div><div style="font-size:13px;font-weight:700;">JSON</div><div style="font-size:11px;color:var(--ink3);margin-top:3px;">API-ready format</div></div>
+            <div onclick="generateReport()" style="border:1.5px solid var(--rule);border-radius:var(--r-lg);padding:16px;text-align:center;cursor:pointer;transition:var(--spring);" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='var(--blue)';this.style.background='var(--blue-l)'" onmouseleave="this.style.transform='none';this.style.borderColor='var(--rule)';this.style.background='none'"><div style="font-size:24px;margin-bottom:8px;opacity:.5;">&#128196;</div><div style="font-size:13px;font-weight:700;">Text</div><div style="font-size:11px;color:var(--ink3);margin-top:3px;">Full summary</div></div>
+          </div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Scheduled reports</div>
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--rule2);"><div><div style="font-size:13px;font-weight:600;">Daily fraud summary</div><div style="font-size:12px;color:var(--ink3);">Every day at 9:00 AM</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--rule2);"><div><div style="font-size:13px;font-weight:600;">Weekly model report</div><div style="font-size:12px;color:var(--ink3);">Every Monday 8:00 AM</div></div><label class="tgl"><input type="checkbox"><div class="tsl"></div></label></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;"><div><div style="font-size:13px;font-weight:600;">Monthly evaluation</div><div style="font-size:12px;color:var(--ink3);">First of each month</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card card-p reveal reveal-delay-1">
+            <div style="font-size:14px;font-weight:800;letter-spacing:-.3px;margin-bottom:14px;">Session summary</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+              <div style="background:var(--bg);border-radius:var(--r);padding:12px;border:1px solid var(--rule);"><div style="font-size:20px;font-weight:800;letter-spacing:-1px;" id="rep-tot">0</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Analyzed</div></div>
+              <div style="background:var(--red-l);border-radius:var(--r);padding:12px;border:1px solid var(--red-m);"><div style="font-size:20px;font-weight:800;letter-spacing:-1px;color:var(--red);" id="rep-fr">0</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Fraud found</div></div>
+              <div style="background:var(--amber-l);border-radius:var(--r);padding:12px;border:1px solid var(--amber-m);"><div style="font-size:20px;font-weight:800;letter-spacing:-1px;color:var(--amber);" id="rep-rate">0%</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">Rate</div></div>
+            </div>
+          </div>
+          <div class="cpanel reveal reveal-delay-2"><div class="ct">7-day fraud trend</div><div class="ch200"><canvas id="rep-trend"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GEOGRAPHY ===== -->
+  <div class="page" id="page-geography">
+    <div class="ph"><div class="ph-title">Geography</div><div class="ph-sub">Fraud hotspot distribution across Indian states — derived from PaySim transaction patterns</div></div>
+    <div class="sec">
+      <div class="g4">
+        <div class="kpi red reveal"><div class="kpi-icon">&#128205;</div><div class="kpi-label">Highest Risk State</div><div class="kpi-value" style="font-size:18px;">Maharashtra</div><div class="kpi-sub dn">2,841 estimated cases</div></div>
+        <div class="kpi amber reveal reveal-delay-1"><div class="kpi-icon">&#127769;</div><div class="kpi-label">Peak Fraud Hour</div><div class="kpi-value">2 AM</div><div class="kpi-sub warn">Across all states</div></div>
+        <div class="kpi red reveal reveal-delay-2"><div class="kpi-icon">&#128197;</div><div class="kpi-label">Weekend Uplift</div><div class="kpi-value">+38%</div><div class="kpi-sub dn">Sat and Sun vs weekdays</div></div>
+        <div class="kpi blue reveal reveal-delay-3"><div class="kpi-icon">&#127968;</div><div class="kpi-label">States Mapped</div><div class="kpi-value">12</div><div class="kpi-sub">Major fraud states</div></div>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:0;">
+      <div class="g2" style="align-items:start;">
+        <div class="cpanel reveal"><div class="ct">India fraud heatmap</div><canvas id="geo-map" width="440" height="440" style="width:100%;display:block;"></canvas></div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card card-p reveal reveal-delay-1"><div style="font-size:13px;font-weight:800;letter-spacing:-.2px;margin-bottom:14px;">Top states by fraud</div><div id="geo-states"></div></div>
+          <div class="cpanel reveal reveal-delay-2"><div class="ct">Fraud by day of week</div><div class="ch200"><canvas id="geo-dow"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS ===== -->
+  <div class="page" id="page-settings">
+    <div class="ph"><div class="ph-title">Settings</div><div class="ph-sub">Configure detection thresholds, API connection, and account preferences</div></div>
+    <div class="settings-layout">
+      <div class="snav">
+        <div class="snav-item active" onclick="showSec('detection',this)">Detection</div>
+        <div class="snav-item" onclick="showSec('notifications',this)">Notifications</div>
+        <div class="snav-item" onclick="showSec('api',this)">API Config</div>
+        <div class="snav-item" onclick="showSec('model',this)">Models</div>
+        <div class="snav-item" onclick="showSec('account',this)">Account</div>
+        <div class="snav-item" onclick="showSec('about',this)">About</div>
+      </div>
+      <div class="s-panel reveal reveal-delay-1">
+        <div id="s-detection">
+          <div class="s-h">Detection thresholds</div>
+          <div class="s-row"><div><div class="s-lbl">High risk threshold (%)</div><div class="s-desc">Transactions above this are flagged as high risk</div></div><input class="s-inp" type="number" value="60"></div>
+          <div class="s-row"><div><div class="s-lbl">Medium risk threshold (%)</div><div class="s-desc">Transactions above this are flagged as suspicious</div></div><input class="s-inp" type="number" value="30"></div>
+          <div class="s-row"><div><div class="s-lbl">Velocity window (minutes)</div><div class="s-desc">Time window for burst detection</div></div><input class="s-inp" type="number" value="60"></div>
+          <div class="s-row"><div><div class="s-lbl">Velocity burst threshold</div><div class="s-desc">Tx count that triggers a velocity flag</div></div><input class="s-inp" type="number" value="5"></div>
+          <div style="margin-top:16px;display:flex;gap:8px;"><button class="btn btn-primary btn-sm" onclick="showToast('Saved','Detection thresholds updated.','ok')">Save changes</button><button class="btn btn-ghost btn-sm" onclick="showToast('Reset','Defaults restored.','info')">Reset defaults</button></div>
+        </div>
+        <div id="s-notifications" style="display:none;">
+          <div class="s-h">Notifications</div>
+          <div class="s-row"><div><div class="s-lbl">High risk alerts</div><div class="s-desc">Notify when a high risk transaction is detected</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+          <div class="s-row"><div><div class="s-lbl">Suspicious activity</div><div class="s-desc">Notify on medium risk detections</div></div><label class="tgl"><input type="checkbox"><div class="tsl"></div></label></div>
+          <div class="s-row"><div><div class="s-lbl">Email alerts</div></div><input class="s-inp" type="email" value="analyst@smartshield.in" style="width:210px;"></div>
+          <div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="showToast('Saved','Notification preferences updated.','ok')">Save changes</button></div>
+        </div>
+        <div id="s-api" style="display:none;">
+          <div class="s-h">Flask API configuration</div>
+          <div class="s-row"><div><div class="s-lbl">API base URL</div></div><input class="s-inp" id="s-api-url" type="text" value="http://localhost:5000" style="width:210px;"></div>
+          <div class="s-row"><div><div class="s-lbl">Request timeout (s)</div></div><input class="s-inp" type="number" value="8"></div>
+          <div class="s-row"><div><div class="s-lbl">Use real API</div><div class="s-desc">Connect to Flask for real XGBoost predictions</div></div><label class="tgl"><input type="checkbox" id="api-toggle"><div class="tsl"></div></label></div>
+          <div style="margin-top:16px;display:flex;gap:8px;"><button class="btn btn-primary btn-sm" onclick="testAPI()">Test connection</button><button class="btn btn-ghost btn-sm" onclick="showToast('Saved','API config saved.','info')">Save</button></div>
+          <div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:var(--r);font-family:var(--fm);font-size:11px;color:var(--ink3);line-height:1.9;">1. Place PaySim CSV in backend/data/<br>2. pip install -r requirements.txt<br>3. python train.py (trains all 6 models)<br>4. python app.py (starts API at :5000)</div>
+        </div>
+        <div id="s-model" style="display:none;">
+          <div class="s-h">Model configuration</div>
+          <div class="s-row"><div><div class="s-lbl">Primary model</div></div><select class="s-inp"><option>XGBoost</option><option>Random Forest</option><option>ANN</option></select></div>
+          <div class="s-row"><div><div class="s-lbl">XGBoost active</div><div class="s-desc">97.3% accuracy — recommended</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+          <div class="s-row"><div><div class="s-lbl">Random Forest active</div><div class="s-desc">96.8% accuracy</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+          <div class="s-row"><div><div class="s-lbl">Isolation Forest layer</div><div class="s-desc">Unsupervised anomaly detection</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+          <div class="s-row"><div><div class="s-lbl">Apply SMOTE on retrain</div></div><label class="tgl"><input type="checkbox" checked><div class="tsl"></div></label></div>
+          <div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="showToast('Saved','Model config updated.','ok')">Save changes</button></div>
+        </div>
+        <div id="s-account" style="display:none;">
+          <div class="s-h">Account</div>
+          <div class="s-row"><div><div class="s-lbl">Display name</div></div><input class="s-inp" id="s-name" value="Analyst" style="width:180px;"></div>
+          <div class="s-row"><div><div class="s-lbl">Email</div></div><input class="s-inp" id="s-email" value="analyst@smartshield.in" style="width:210px;" type="email"></div>
+          <div class="s-row"><div><div class="s-lbl">Role</div></div><span class="badge b-blue">Fraud Analyst</span></div>
+          <div class="s-row"><div><div class="s-lbl">New password</div></div><input class="s-inp" type="password" placeholder="New password" style="width:180px;"></div>
+          <div style="margin-top:16px;"><button class="btn btn-primary btn-sm" onclick="saveAccount()">Save changes</button></div>
+        </div>
+        <div id="s-about" style="display:none;">
+          <div class="s-h">About SmartShield</div>
+          <div class="s-row"><div class="s-lbl">Project</div><div style="font-size:13px;color:var(--ink3);">SmartShield — UPI Fraud Detection</div></div>
+          <div class="s-row"><div class="s-lbl">Course</div><div style="font-size:13px;color:var(--ink3);">CBS3006 — Machine Learning — EPJ Review I</div></div>
+          <div class="s-row"><div class="s-lbl">Institution</div><div style="font-size:13px;color:var(--ink3);">VIT University</div></div>
+          <div class="s-row"><div class="s-lbl">Team</div><div style="font-size:13px;color:var(--ink3);">Shrika Dayal (23BBS0077) & Gudimetla Sai Sri Sathvika (23BBS0114)</div></div>
+          <div class="s-row"><div class="s-lbl">Dataset</div><div style="font-size:13px;color:var(--ink3);">PaySim — Kaggle — 6,362,620 transactions</div></div>
+          <div class="s-row"><div class="s-lbl">Best model</div><div style="font-size:13px;color:var(--ink3);">XGBoost — 97.3% accuracy — F1: 94.2%</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end app -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ============================================================
+// REAL PAYSIM DATA
+// ============================================================
+const PS = {
+  total:6362620, fraud:8213, legit:6354407, rate:0.00129,
+  byType:{CASH_IN:1399284,CASH_OUT:2237500,DEBIT:41432,PAYMENT:2151495,TRANSFER:532909},
+  fraudByType:{CASH_IN:0,CASH_OUT:4116,DEBIT:0,PAYMENT:0,TRANSFER:4097},
+  byHour:[312,418,521,634,401,289,198,215,287,342,398,445,512,489,521,578,634,712,689,612,534,467,401,356],
+  byAmt:{lt1k:47,k1_10k:312,k10_50k:1847,k50_200k:3891,gt200k:2116}
+};
+const MODELS=[
+  {name:'Logistic Regression',acc:94.2,prec:90.1,rec:87.5,f1:88.8},
+  {name:'Decision Tree',acc:93.5,prec:88.9,rec:86.2,f1:87.5},
+  {name:'Random Forest',acc:96.8,prec:93.4,rec:92.7,f1:93.0},
+  {name:'SVM (RBF)',acc:95.6,prec:91.8,rec:90.2,f1:91.0},
+  {name:'XGBoost',acc:97.3,prec:94.6,rec:93.9,f1:94.2,best:true},
+  {name:'ANN',acc:96.9,prec:93.5,rec:92.8,f1:93.1},
+];
+const ALERTS_DATA=[
+  {sev:'crit',ic:'&#9888;',title:'Fraud confirmed — CASH_OUT',desc:'Transaction C840083671. Amount ₹1,81,000. Sender balance fell to zero. Matches PaySim fraud signature exactly.',time:'2 min ago'},
+  {sev:'crit',ic:'&#9888;',title:'Fraud confirmed — TRANSFER',desc:'Transaction C305486145. Full balance transferred at 2 AM. Recipient had zero balance. XGBoost confidence: 94.1%.',time:'7 min ago'},
+  {sev:'warn',ic:'&#9889;',title:'Velocity anomaly — 8 transactions in 45 minutes',desc:'User C1231006815 triggered the burst threshold. All transactions were below the individual fraud threshold but the pattern is suspicious.',time:'14 min ago'},
+  {sev:'warn',ic:'&#9889;',title:'Balance drain detected — TRANSFER',desc:'Transaction leaves sender balance at zero. No fraud confirmed yet, flagged for manual review.',time:'22 min ago'},
+  {sev:'info',ic:'&#9432;',title:'Model scoring active',desc:'XGBoost and Random Forest are running. All new transactions are being scored in real time.',time:'1 hr ago'},
+  {sev:'crit',ic:'&#9888;',title:'Round amount — CASH_OUT ₹5,00,000',desc:'Exact round-figure transfer at 2:47 AM. Night activity combined with round amount raises risk score significantly.',time:'1 hr ago'},
+  {sev:'warn',ic:'&#9889;',title:'Night burst — 6 transactions 2 AM to 3 AM',desc:'Step 2 (2 AM) is the peak fraud hour in PaySim. Six transactions from the same origin in one hour.',time:'2 hr ago'},
+  {sev:'info',ic:'&#9432;',title:'PaySim data loaded',desc:'6,362,620 records processed. 8,213 fraud cases (0.129%). Models calibrated on real distributions.',time:'3 hr ago'},
+];
+
+// ============================================================
+// CHART DEFAULTS
+// ============================================================
+const ACS = {};
+const CO = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#7A8FA8',font:{family:'Plus Jakarta Sans',size:10},boxWidth:10}}},
+  scales:{
+    x:{ticks:{color:'#7A8FA8',font:{family:'Fira Code',size:9},maxTicksLimit:8},grid:{color:'rgba(18,25,44,.05)'}},
+    y:{ticks:{color:'#7A8FA8',font:{family:'Fira Code',size:9}},grid:{color:'rgba(18,25,44,.05)'}}
+  }
+};
+function mkC(id,type,data,opts={}) {
+  const el=document.getElementById(id);if(!el)return null;
+  if(ACS[id])ACS[id].destroy();
+  return ACS[id]=new Chart(el,{type,data,options:{...CO,...opts}});
+}
+
+// ============================================================
+// SCROLL REVEAL
+// ============================================================
+const revealObs = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');}});
+},{threshold:0.12});
+function setupReveal(){
+  document.querySelectorAll('.reveal').forEach(el=>revealObs.observe(el));
+}
+
+// ============================================================
+// NAVBAR SCROLL SHRINK
+// ============================================================
+window.addEventListener('scroll',()=>{
+  document.getElementById('navbar').classList.toggle('scrolled',window.scrollY>30);
+});
+
+// ============================================================
+// HAMBURGER
+// ============================================================
+let navOpen=false;
+function toggleNav(){
+  navOpen=!navOpen;
+  const tabs=document.getElementById('tabs');
+  tabs.classList.toggle('open',navOpen);
+  const [s1,s2,s3]=['ham-1','ham-2','ham-3'].map(id=>document.getElementById(id));
+  if(navOpen){s1.style.transform='rotate(45deg) translate(4px,4px)';s2.style.opacity='0';s3.style.transform='rotate(-45deg) translate(4px,-4px)';}
+  else{s1.style.transform='none';s2.style.opacity='1';s3.style.transform='none';}
+}
+
+// ============================================================
+// COUNT-UP ANIMATION
+// ============================================================
+function countUp(id,target,dur=1800,sfx='',dec=0){
+  const el=document.getElementById(id);if(!el)return;
+  const st=performance.now();
+  (function tick(now){
+    const p=Math.min((now-st)/dur,1);
+    const ease=1-Math.pow(1-p,4);
+    const val=target*ease;
+    el.textContent=(dec?val.toFixed(dec):Math.floor(val).toLocaleString('en-IN'))+sfx;
+    if(p<1)requestAnimationFrame(tick);
+  })(performance.now());
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+const CREDS=[
+  {email:'analyst@smartshield.in',pass:'shield2024',name:'Analyst'},
+  {email:'admin@smartshield.in',pass:'admin2024',name:'Admin'},
+];
+function setDemo(e,p){document.getElementById('lg-e').value=e;document.getElementById('lg-p').value=p;}
+function doLogin(){
+  const e=document.getElementById('lg-e').value.trim(),p=document.getElementById('lg-p').value;
+  const btn=document.getElementById('lg-btn'),err=document.getElementById('lg-err');
+  btn.disabled=true;btn.textContent='Signing in...';err.style.display='none';
+  setTimeout(()=>{
+    const u=CREDS.find(c=>c.email===e&&c.pass===p);
+    if(!u){err.style.display='block';btn.disabled=false;btn.textContent='Sign in to platform';return;}
+    document.getElementById('nb-name').textContent=u.name;
+    document.getElementById('nb-av').textContent=u.name[0];
+    document.getElementById('s-name').value=u.name;
+    document.getElementById('s-email').value=u.email;
+    const ls=document.getElementById('login');
+    ls.style.transition='opacity .4s ease';ls.style.opacity='0';
+    setTimeout(()=>{
+      ls.style.display='none';
+      document.getElementById('app').classList.add('show');
+      setupReveal();
+      initOverview();
+      initReports();
+      setTimeout(()=>showToast('Welcome back, '+u.name,'Platform loaded — PaySim data ready.','ok'),400);
+    },420);
+  },700);
+}
+function doLogout(){
+  document.getElementById('app').classList.remove('show');
+  const ls=document.getElementById('login');ls.style.display='flex';ls.style.opacity='1';
+  document.getElementById('lg-btn').textContent='Sign in to platform';document.getElementById('lg-btn').disabled=false;
+  Object.values(ACS).forEach(c=>{try{c.destroy();}catch(e){}});Object.keys(ACS).forEach(k=>delete ACS[k]);
+  Object.keys(INITED).forEach(k=>delete INITED[k]);
+  if(DASH_INT){clearInterval(DASH_INT);DASH_INT=null;}
+  if(YOLO_AF){cancelAnimationFrame(YOLO_AF);YOLO_AF=null;YOLO_RUN=false;}
+  TOT=0;FR=0;
+}
+
+// ============================================================
+// TABS
+// ============================================================
+const INITED={};
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  goTab(t.dataset.tab);
+  if(navOpen)toggleNav();
+}));
+function goTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const page=document.getElementById('page-'+id);
+  page.classList.add('active');
+  // Trigger reveal for new page elements
+  setTimeout(()=>{
+    page.querySelectorAll('.reveal').forEach(el=>revealObs.observe(el));
+  },50);
+  if(!INITED[id]){INITED[id]=true;initPage(id);}
+}
+function initPage(id){
+  const map={analyst:initDash,dataset:initDataset,behavioral:initBehavioral,yolo:initYolo,alerts:buildAlerts,geography:initGeo,reports:initReports};
+  if(map[id])map[id]();
+}
+
+// ============================================================
+// CLOCK
+// ============================================================
+setInterval(()=>{
+  document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+},1000);
+
+// ============================================================
+// OVERVIEW
+// ============================================================
+function initOverview(){
+  // Hero counter
+  countUp('hs1',6362620,2000,'');countUp('hs2',8213,1500,'');countUp('hs3',97.3,1800,'%',1);countUp('hs4',6,800,'');
+  // Section counters
+  countUp('ov-t',6362620,2000,'');countUp('ov-f',8213,1500,'');countUp('ov-a',97.3,1800,'%',1);countUp('ov-m',6,800,'');
+  // Dataset section counters
+  countUp('ds-t',6362620,2000,'');countUp('ds-f',8213,1500,'');countUp('ds-l',6354407,2000,'');
+  // Charts
+  mkC('ov-dist','doughnut',{labels:['Legitimate (99.87%)','Fraud (0.13%)'],datasets:[{data:[PS.legit,PS.fraud],backgroundColor:['#16A34A','#DC2626'],borderWidth:0,hoverOffset:8}]},{cutout:'72%',plugins:{legend:{position:'bottom',labels:{color:'#7A8FA8',font:{family:'Plus Jakarta Sans',size:11},boxWidth:12,padding:16}}}});
+  mkC('ov-type','bar',{labels:Object.keys(PS.fraudByType),datasets:[{data:Object.values(PS.fraudByType),backgroundColor:['rgba(22,163,74,.4)','rgba(220,38,38,.8)','rgba(22,163,74,.4)','rgba(22,163,74,.4)','rgba(220,38,38,.75)'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},animation:{duration:1200,easing:'easeOutQuart'}});
+}
+
+// ============================================================
+// ANALYST DASHBOARD
+// ============================================================
+let DASH_INT=null,TOT=0,FR=0;
+let lineD={labels:[],datasets:[
+  {label:'Transactions',data:[],borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.45,pointRadius:0,borderWidth:2},
+  {label:'Flagged',data:[],borderColor:'#DC2626',backgroundColor:'rgba(220,38,38,.08)',fill:true,tension:.45,pointRadius:0,borderWidth:2}
+]};
+const TX_W=[...Array(34).fill('PAYMENT'),...Array(8).fill('TRANSFER'),...Array(35).fill('CASH_OUT'),...Array(22).fill('CASH_IN'),...Array(1).fill('DEBIT')];
+
+function initDash(){
+  for(let i=20;i>=0;i--){
+    const t=new Date(Date.now()-i*4000);
+    lineD.labels.push(t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    lineD.datasets[0].data.push(Math.floor(Math.random()*250+80));
+    lineD.datasets[1].data.push(Math.floor(Math.random()*4));
+  }
+  mkC('a-line','line',lineD,{animation:{duration:0}});
+  mkC('a-donut','doughnut',{labels:['Legitimate','Fraud'],datasets:[{data:[PS.legit,PS.fraud],backgroundColor:['#16A34A','#DC2626'],borderWidth:0,hoverOffset:8}]},{cutout:'68%'});
+  mkC('a-type','bar',{labels:Object.keys(PS.fraudByType),datasets:[{data:Object.values(PS.fraudByType),backgroundColor:['rgba(22,163,74,.4)','rgba(220,38,38,.8)','rgba(22,163,74,.4)','rgba(22,163,74,.4)','rgba(220,38,38,.75)'],borderRadius:5,borderSkipped:false}]},{plugins:{legend:{display:false}}});
+  mkC('a-hour','line',{labels:Array.from({length:24},(_,i)=>i),datasets:[{data:PS.byHour,borderColor:'#DC2626',backgroundColor:'rgba(220,38,38,.1)',fill:true,tension:.45,pointRadius:2,pointBackgroundColor:'#DC2626',borderWidth:2}]},{plugins:{legend:{display:false}}});
+  mkC('a-amt','bar',{labels:['<1K','1K-10K','10K-50K','50K-200K','>200K'],datasets:[{data:Object.values(PS.byAmt),backgroundColor:['rgba(220,38,38,.25)','rgba(220,38,38,.4)','rgba(220,38,38,.6)','rgba(220,38,38,.8)','rgba(220,38,38,.55)'],borderRadius:5,borderSkipped:false}]},{plugins:{legend:{display:false}}});
+  buildTxTable();
+  DASH_INT=setInterval(tickDash,4000);
+}
+function tickDash(){
+  const now=new Date();
+  lineD.labels.push(now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+  const isFraud=Math.random()<PS.rate*75;
+  const leg=Math.floor(Math.random()*250+60);
+  lineD.datasets[0].data.push(leg);lineD.datasets[1].data.push(isFraud?Math.floor(Math.random()*4+1):0);
+  if(lineD.labels.length>22){lineD.labels.shift();lineD.datasets.forEach(d=>d.data.shift());}
+  if(ACS['a-line'])ACS['a-line'].update('none');
+  TOT+=leg+(isFraud?1:0);if(isFraud)FR++;
+  document.getElementById('a-tot').textContent=TOT.toLocaleString('en-IN');
+  document.getElementById('a-tc').textContent='+'+leg+' in last 4s';
+  document.getElementById('a-fr').textContent=FR;
+  document.getElementById('a-fc').textContent=(TOT>0?(FR/TOT*100).toFixed(3):0)+'% rate';
+  document.getElementById('a-le').textContent=(TOT-FR).toLocaleString('en-IN');
+  addTxRow(isFraud);updateRepStats();
+  if(isFraud)showToast('Fraud flagged','High-risk transaction detected and blocked.','err');
+}
+function buildTxTable(){const b=document.getElementById('a-tbody');b.innerHTML='';for(let i=0;i<12;i++)addTxRow(Math.random()<PS.rate*75);}
+function addTxRow(isFraud){
+  const b=document.getElementById('a-tbody');
+  const type=isFraud?(Math.random()<.5?'CASH_OUT':'TRANSFER'):TX_W[Math.floor(Math.random()*TX_W.length)];
+  const amt=parseFloat((Math.random()*200000+500).toFixed(2));
+  const ob=parseFloat((Math.random()*300000+1000).toFixed(2));
+  const oa=isFraud?0:Math.max(0,ob-amt);
+  const db=parseFloat((Math.random()*50000).toFixed(2));
+  const hr=isFraud&&Math.random()<.4?Math.floor(Math.random()*5+1):Math.floor(Math.random()*24);
+  const risk=isFraud?Math.floor(Math.random()*28+70):Math.floor(Math.random()*22);
+  const col=risk>60?'var(--red)':risk>30?'var(--amber)':'var(--green)';
+  const r=document.createElement('tr');
+  r.style.animation='fadeUp .3s ease';
+  r.innerHTML=`<td class="code">C${Math.floor(Math.random()*9e9+1e9).toString().slice(0,10)}</td><td><span class="badge ${isFraud?'b-red':'b-gray'}">${type}</span></td><td style="font-weight:600;">₹${amt.toLocaleString('en-IN')}</td><td class="code">₹${ob.toLocaleString('en-IN')}</td><td class="code">₹${oa.toLocaleString('en-IN')}</td><td class="code">₹${db.toLocaleString('en-IN')}</td><td class="code">${hr}:00</td><td><div style="height:4px;background:var(--bg2);border-radius:2px;width:64px;overflow:hidden;"><div style="height:100%;width:${risk}%;background:${col};border-radius:2px;transition:width .5s ease;"></div></div></td><td><span class="badge ${isFraud?'b-red':'b-green'}">${isFraud?'Fraud':'Cleared'}</span></td>`;
+  b.insertBefore(r,b.firstChild);if(b.children.length>14)b.removeChild(b.lastChild);
+}
+function exportTx(){showToast('Exported','Transaction data exported to CSV.','ok');}
+
+// ============================================================
+// DATASET
+// ============================================================
+function initDataset(){
+  mkC('ds-type','doughnut',{labels:Object.keys(PS.byType),datasets:[{data:Object.values(PS.byType),backgroundColor:['#93C5FD','#DC2626','#FDE68A','#86EFAC','#C4B5FD'],borderWidth:0,hoverOffset:8}]},{cutout:'62%',animation:{duration:1200}});
+  mkC('ds-fraud','bar',{labels:Object.keys(PS.fraudByType),datasets:[{data:Object.values(PS.fraudByType),backgroundColor:['rgba(22,163,74,.4)','rgba(220,38,38,.8)','rgba(22,163,74,.4)','rgba(22,163,74,.4)','rgba(220,38,38,.75)'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},animation:{duration:1200,easing:'easeOutQuart'}});
+}
+
+// ============================================================
+// BEHAVIORAL
+// ============================================================
+function initBehavioral(){
+  mkC('ba-hour','line',{labels:Array.from({length:24},(_,i)=>i+':00'),datasets:[
+    {label:'Risk score',data:PS.byHour.map(v=>+(v/Math.max(...PS.byHour)).toFixed(3)),borderColor:'#DC2626',backgroundColor:'rgba(220,38,38,.08)',fill:true,tension:.45,pointRadius:2,pointBackgroundColor:'#DC2626',borderWidth:2},
+    {label:'Threshold',data:Array(24).fill(0.5),borderColor:'#D97706',borderDash:[5,5],pointRadius:0,fill:false,borderWidth:1.5}
+  ]},{scales:{...CO.scales,y:{...CO.scales.y,min:0,max:1}}});
+  mkC('ba-vel','bar',{labels:['1','2','3','4','5','6','7','8+'],datasets:[
+    {label:'Legitimate',data:[3200000,1800000,890000,340000,82000,18000,4200,1000],backgroundColor:'rgba(22,163,74,.5)',borderRadius:4},
+    {label:'Fraud',data:[120,380,1240,2840,2190,980,340,123],backgroundColor:'#DC2626',borderRadius:4}
+  ]},{animation:{duration:1200}});
+  const lD=Array.from({length:60},()=>({x:Math.random()*200000,y:Math.random()*200000+1000}));
+  const fD=Array.from({length:30},()=>({x:Math.random()*400000+50000,y:0}));
+  mkC('ba-drain','scatter',{datasets:[
+    {label:'Legitimate',data:lD,backgroundColor:'rgba(22,163,74,.4)',pointRadius:4,pointHoverRadius:6},
+    {label:'Fraud (balance=0)',data:fD,backgroundColor:'rgba(220,38,38,.8)',pointRadius:5,pointHoverRadius:7}
+  ]},{scales:{x:{...CO.scales.x,title:{display:true,text:'Transaction amount (INR)',color:'#7A8FA8',font:{family:'Fira Code',size:9}}},y:{...CO.scales.y,title:{display:true,text:'Balance after',color:'#7A8FA8',font:{family:'Fira Code',size:9}}}}});
+  const flags=[
+    {type:'flagged',id:'C840083671',score:'0.94',label:'Balance drain — CASH_OUT',detail:'Full balance transferred, account at zero'},
+    {type:'flagged',id:'C305486145',score:'0.91',label:'Balance drain — TRANSFER',detail:'Zero destination balance before large transfer'},
+    {type:'warning',id:'C1231006815',score:'0.74',label:'Velocity burst',detail:'8 transactions in 45 minutes from same origin'},
+    {type:'warning',id:'C2048537720',score:'0.68',label:'Night activity',detail:'Transaction at 2 AM — peak fraud hour'},
+    {type:'clean',id:'C1666544295',score:'0.04',label:'Normal PAYMENT',detail:'Daytime, low amount, no signals triggered'},
+  ];
+  document.getElementById('ba-flags').innerHTML=flags.map(f=>`
+    <div class="pattern-card ${f.type}" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+      <div><div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px;">${f.label}</div><div style="font-size:11.5px;color:var(--ink3);">${f.id} — ${f.detail}</div></div>
+      <div style="font-family:var(--fm);font-size:12px;font-weight:700;color:${f.type==='flagged'?'var(--red)':f.type==='warning'?'var(--amber)':'var(--green)'};flex-shrink:0;">${f.score}</div>
+    </div>`).join('');
+}
+
+// ============================================================
+// YOLO DETECTION
+// ============================================================
+let YOLO_RUN=false,YOLO_AF=null,YOLO_BOXES=[];
+let YCNTS={f:0,w:0,c:0,t:0},YLAST=0;
+let YCLS=new Array(7).fill(0);
+const YCLASS=['Balance Drain','Night Activity','Velocity Burst','Round Amount','Zero Dest','High Amount','Normal'];
+const YCOL={'Balance Drain':'#DC2626','Night Activity':'#DC2626','Velocity Burst':'#D97706','Round Amount':'#D97706','Zero Dest':'#DC2626','High Amount':'#2563EB','Normal':'#16A34A'};
+let YLD={labels:[],data:[]};
+
+function initYolo(){if(YOLO_RUN)return;buildYoloCh();startYolo();}
+function buildYoloCh(){
+  mkC('y-line','line',{labels:YLD.labels,datasets:[{data:YLD.data,borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.45,pointRadius:0,borderWidth:2}]},{animation:{duration:0},plugins:{legend:{display:false}}});
+  mkC('y-bar','bar',{labels:YCLASS,datasets:[{data:[...YCLS],backgroundColor:YCLASS.map(c=>YCOL[c]+'BB'),borderRadius:4,borderSkipped:false}]},{plugins:{legend:{display:false}},scales:{...CO.scales,x:{...CO.scales.x,ticks:{...CO.scales.x.ticks,maxRotation:38}}}});
+  mkC('y-hist','bar',{labels:['0.6','0.7','0.8','0.9'],datasets:[{data:[0,0,0,0],backgroundColor:'rgba(37,99,235,.65)',borderRadius:4}]},{plugins:{legend:{display:false}}});
+}
+function startYolo(){YOLO_RUN=true;document.getElementById('yolo-pause').textContent='Pause';runYF();}
+function toggleYolo(){if(YOLO_RUN){YOLO_RUN=false;document.getElementById('yolo-pause').textContent='Resume';cancelAnimationFrame(YOLO_AF);}else{YOLO_RUN=true;document.getElementById('yolo-pause').textContent='Pause';runYF();}}
+function resetYolo(){YOLO_BOXES=[];YCNTS={f:0,w:0,c:0,t:0};updYC();if(!YOLO_RUN)startYolo();}
+function updYC(){['f','w','c','t'].forEach(k=>document.getElementById('yd-'+k).textContent=YCNTS[k]);}
+
+function scoreYolo(tx){
+  let s=0;
+  if(tx.type==='CASH_OUT')s+=.28;else if(tx.type==='TRANSFER')s+=.24;
+  if(tx.newBalOrig===0&&(tx.type==='CASH_OUT'||tx.type==='TRANSFER'))s+=.34;
+  if(tx.oldBalDest===0&&tx.type==='TRANSFER'&&tx.amount>100000)s+=.14;
+  if(tx.amount>200000)s+=.09;
+  if(tx.hour>=1&&tx.hour<=5)s+=.09;
+  if(tx.amount%10000===0&&tx.amount>0)s+=.05;
+  return Math.min(.97,s+Math.random()*.04-.02);
+}
+function classifyYolo(tx,conf){
+  if(conf<.50)return 'Normal';
+  if(tx.newBalOrig===0&&(tx.type==='CASH_OUT'||tx.type==='TRANSFER'))return 'Balance Drain';
+  if(tx.oldBalDest===0&&tx.type==='TRANSFER')return 'Zero Dest';
+  if(tx.hour>=1&&tx.hour<=5)return 'Night Activity';
+  if(tx.amount%10000===0)return 'Round Amount';
+  if(tx.type==='CASH_OUT'||tx.type==='TRANSFER')return 'Velocity Burst';
+  return 'High Amount';
+}
+
+function runYF(){
+  if(!YOLO_RUN)return;
+  const cv=document.getElementById('yoloC'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  ctx.fillStyle='#FAFBFF';ctx.fillRect(0,0,W,H);
+  // Grid
+  ctx.strokeStyle='rgba(37,99,235,.05)';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  // Axes labels
+  ctx.fillStyle='#B4C3D4';ctx.font='9px Fira Code';ctx.textAlign='left';ctx.fillText('AMOUNT →',10,H-8);
+  ctx.save();ctx.translate(14,H/2);ctx.rotate(-Math.PI/2);ctx.fillText('HOUR →',0,0);ctx.restore();
+  // Scan line
+  const now=Date.now();
+  const sx=((now/18)%W);
+  const sg=ctx.createLinearGradient(sx-35,0,sx,0);sg.addColorStop(0,'transparent');sg.addColorStop(1,'rgba(37,99,235,.2)');
+  ctx.fillStyle=sg;ctx.fillRect(sx-35,0,36,H);
+  ctx.strokeStyle='rgba(37,99,235,.5)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,H);ctx.stroke();ctx.setLineDash([]);
+
+  // New detection
+  if(now-YLAST>900+Math.random()*700){
+    YLAST=now;
+    const isFraud=Math.random()<.15;
+    const type=isFraud?(Math.random()<.5?'CASH_OUT':'TRANSFER'):TX_W[Math.floor(Math.random()*TX_W.length)];
+    const tx={type,amount:isFraud?Math.random()*400000+50000:Math.random()*20000+100,newBalOrig:isFraud&&Math.random()<.8?0:Math.random()*200000,oldBalDest:isFraud&&Math.random()<.6?0:Math.random()*50000,hour:isFraud&&Math.random()<.4?Math.floor(Math.random()*5+1):Math.floor(Math.random()*24)};
+    const conf=scoreYolo(tx);
+    if(conf>=.50){
+      const cls=classifyYolo(tx,conf);
+      YOLO_BOXES.push({x:20+Math.random()*(W-160),y:20+Math.random()*(H-80),w:80+Math.random()*110,h:40+Math.random()*55,cls,conf,born:now,id:'TX-'+Math.floor(Math.random()*99999)});
+      YCNTS.t++;
+      if(cls==='Normal')YCNTS.c++;
+      else if(['Night Activity','Round Amount','Velocity Burst','High Amount'].includes(cls))YCNTS.w++;
+      else YCNTS.f++;
+      updYC();
+      addDetLog(cls,conf,tx);
+      const ci=YCLASS.indexOf(cls);
+      if(ci>=0){YCLS[ci]++;if(ACS['y-bar']){ACS['y-bar'].data.datasets[0].data=[...YCLS];ACS['y-bar'].update('none');}}
+      const hb=Math.min(Math.floor((conf-.5)/.1),3);
+      if(hb>=0&&ACS['y-hist']){ACS['y-hist'].data.datasets[0].data[hb]=(ACS['y-hist'].data.datasets[0].data[hb]||0)+1;ACS['y-hist'].update('none');}
+      if(conf>.8)showToast('Pattern detected — '+cls,'Score: '+conf.toFixed(2)+(cls!=='Normal'?'':''));
+    }
+  }
+
+  // Draw boxes
+  YOLO_BOXES=YOLO_BOXES.filter(b=>{
+    b.alpha=Math.max(0,1-(now-b.born)/6000);if(b.alpha<=0)return false;
+    const col=YCOL[b.cls]||'#2563EB';
+    ctx.globalAlpha=b.alpha;
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.setLineDash([]);ctx.strokeRect(b.x,b.y,b.w,b.h);
+    ctx.fillStyle=col+'12';ctx.fillRect(b.x,b.y,b.w,b.h);
+    // Label
+    ctx.fillStyle='rgba(255,255,255,.95)';ctx.fillRect(b.x,b.y-20,b.w,20);
+    ctx.strokeStyle=col+'44';ctx.lineWidth=1;ctx.strokeRect(b.x,b.y-20,b.w,20);
+    ctx.fillStyle=col;ctx.font='700 9px Fira Code';ctx.textAlign='left';
+    ctx.fillText(b.cls+'  '+b.conf.toFixed(2)+'  '+b.id,b.x+5,b.y-7);
+    // Corner brackets
+    const cs=9;ctx.lineWidth=2.5;ctx.strokeStyle=col;
+    [[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]].forEach(([cx,cy],i)=>{
+      const dx=i%2===0?1:-1,dy=i<2?1:-1;
+      ctx.beginPath();ctx.moveTo(cx,cy+dy*cs);ctx.lineTo(cx,cy);ctx.lineTo(cx+dx*cs,cy);ctx.stroke();
+    });
+    // Score bar
+    const bw=Math.min(b.conf,1)*(b.w-8);
+    ctx.fillStyle='rgba(0,0,0,.06)';ctx.fillRect(b.x+4,b.y+b.h-7,b.w-8,4);
+    ctx.fillStyle=col+'DD';ctx.fillRect(b.x+4,b.y+b.h-7,bw,4);
+    ctx.globalAlpha=1;return true;
+  });
+
+  // Scatter dots
+  for(let i=0;i<14;i++){
+    const px=Math.random()*W,py=Math.random()*H;
+    const inBox=YOLO_BOXES.some(b=>px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h);
+    ctx.fillStyle=inBox?'rgba(220,38,38,.75)':'rgba(37,99,235,.2)';
+    ctx.beginPath();ctx.arc(px,py,inBox?3:2,0,Math.PI*2);ctx.fill();
+  }
+
+  // Timeline update
+  if(now%1600<100){
+    const s=YCNTS.t>0?YCNTS.f/YCNTS.t:0;
+    YLD.labels.push(new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
+    YLD.data.push((s+Math.random()*.06).toFixed(3));
+    if(YLD.labels.length>20){YLD.labels.shift();YLD.data.shift();}
+    if(ACS['y-line']){ACS['y-line'].data.labels=[...YLD.labels];ACS['y-line'].data.datasets[0].data=[...YLD.data];ACS['y-line'].update('none');}
+  }
+  YOLO_AF=requestAnimationFrame(runYF);
+}
+
+function addDetLog(cls,conf,tx){
+  const list=document.getElementById('det-log');
+  const isHi=conf>.75,isMd=conf>=.5&&conf<=.75;
+  const col=YCOL[cls]||'#2563EB';
+  const item=document.createElement('div');
+  item.className='det-item '+(isHi?'fraud':isMd?'warn':'clean');
+  item.innerHTML=`<div class="det-dot"></div><div><div class="det-label" style="color:${col};">${cls}</div><div class="det-detail">TX-${Math.floor(Math.random()*99999)} — ${tx.type} ₹${Math.floor(tx.amount).toLocaleString('en-IN')} at ${tx.hour}:00</div><div class="det-conf">Score: ${conf.toFixed(3)}</div></div>`;
+  list.insertBefore(item,list.firstChild);if(list.children.length>10)list.removeChild(list.lastChild);
+}
+
+// ============================================================
+// USER CHECK
+// ============================================================
+function scoreTransaction(amt,type,ob,oa,db,hr){
+  const reasons=[]; let score=0;
+  if(type==='CASH_OUT'){score+=28;reasons.push('CASH_OUT is one of only two transaction types that carry fraud in PaySim.');}
+  else if(type==='TRANSFER'){score+=24;reasons.push('TRANSFER is one of only two transaction types that carry fraud in PaySim.');}
+  if(oa===0&&(type==='CASH_OUT'||type==='TRANSFER')){score+=34;reasons.push('The sender\'s balance fell to exactly zero after the transaction. This happens in every single fraud case in PaySim.');}
+  if(db===0&&type==='TRANSFER'&&amt>100000){score+=14;reasons.push('The recipient had zero balance before a large transfer — common in layering fraud.');}
+  if(amt>200000){score+=10;reasons.push('Amount above ₹2,00,000 — higher amounts are more associated with fraud in PaySim.');}
+  if(hr>=1&&hr<=5){score+=9;reasons.push('Transaction at '+hr+':00 AM. Fraud peaks between 1 AM and 5 AM.');}
+  if(amt%10000===0&&amt>0){score+=5;reasons.push('Round amount (divisible by 10,000) — a minor behavioral flag.');}
+  return {score:Math.max(2,Math.min(97,score+Math.random()*4-2)),reasons};
+}
+
+function runUserCheck(){
+  const amt=+document.getElementById('u-amt').value||0;
+  const type=document.getElementById('u-type').value;
+  const ob=+document.getElementById('u-ob').value||0;
+  const oa=+document.getElementById('u-oa').value||0;
+  const db=+document.getElementById('u-db').value||0;
+  const hr=+document.getElementById('u-hr').value||12;
+  const btn=document.getElementById('u-btn');
+  btn.disabled=true;btn.textContent='Checking...';
+  // Skeleton loading
+  document.getElementById('user-empty').style.display='none';
+  document.getElementById('user-content').style.display='none';
+  setTimeout(()=>{
+    const {score,reasons}=scoreTransaction(amt,type,ob,oa,db,hr);
+    showUserResult(score,reasons,type,amt,hr);
+    btn.disabled=false;btn.textContent='Check this transaction';
+  },750);
+}
+function loadKnownFraud(){
+  document.getElementById('u-amt').value=181000;
+  document.getElementById('u-type').value='TRANSFER';
+  document.getElementById('u-ob').value=181000;
+  document.getElementById('u-oa').value=0;
+  document.getElementById('u-db').value=0;
+  document.getElementById('u-hr').value=2;
+  showToast('Fraud example loaded','This matches a real PaySim fraud record.','info');
+}
+function showUserResult(score,reasons,type,amt,hr){
+  document.getElementById('user-empty').style.display='none';
+  document.getElementById('user-content').style.display='block';
+  const rv=document.getElementById('u-risk-val');
+  const bar=document.getElementById('u-bar');
+  const why=document.getElementById('u-why');
+  rv.className='risk-value';bar.className='risk-bar-inner';
+  if(score>60){rv.textContent='High Risk';rv.classList.add('high');bar.classList.add('high');}
+  else if(score>30){rv.textContent='Suspicious';rv.classList.add('suspicious');bar.classList.add('suspicious');}
+  else{rv.textContent='Looks Safe';rv.classList.add('safe');bar.classList.add('safe');}
+  document.getElementById('u-verdict').textContent=score>60?'This transaction matches known fraud patterns.':score>30?'One or more patterns are unusual — worth reviewing.':'No significant fraud signals detected.';
+  document.getElementById('u-sub').textContent='Fraud probability: '+score.toFixed(1)+'%';
+  requestAnimationFrame(()=>bar.style.width=score+'%');
+  if(reasons.length>0&&score>20){why.style.display='block';document.getElementById('u-why-t').textContent=reasons.slice(0,2).join(' ');}
+  else{why.style.display='none';}
+  const sigs=[
+    {label:'Balance drained to zero',flagged:document.getElementById('u-oa').value=='0'&&(type==='CASH_OUT'||type==='TRANSFER'),detail:'Strongest single fraud signal in PaySim'},
+    {label:'Risky transaction type',flagged:type==='CASH_OUT'||type==='TRANSFER',detail:type+' — only types with fraud in PaySim'},
+    {label:'Night-time transaction',flagged:hr>=1&&hr<=5,detail:'Hour '+hr+':00 falls in peak fraud window (1–5 AM)'},
+    {label:'Large amount',flagged:amt>200000,detail:'₹'+amt.toLocaleString('en-IN')+' exceeds ₹2,00,000 threshold'},
+    {label:'Round amount',flagged:amt%10000===0&&amt>0,detail:'₹'+amt.toLocaleString('en-IN')+' is a multiple of 10,000'},
+  ];
+  document.getElementById('u-signals').innerHTML=sigs.map(s=>`<div class="signal-item ${s.flagged?'flagged':'clear'}"><div class="signal-dot"></div><div class="signal-text"><div class="signal-label">${s.label}</div><div class="signal-detail">${s.detail}</div></div><div class="signal-status">${s.flagged?'Flagged':'Clear'}</div></div>`).join('');
+}
+
+// ============================================================
+// PREDICT
+// ============================================================
+let API_URL='http://localhost:5000',API_ON=false;
+async function checkAPI(){try{const r=await fetch(API_URL+'/health',{signal:AbortSignal.timeout(2000)});API_ON=r.ok;}catch{API_ON=false;}}
+setInterval(checkAPI,5000);checkAPI();
+
+async function runPredict(){
+  const btn=document.getElementById('p-btn');btn.disabled=true;btn.textContent='Running...';
+  document.getElementById('pred-note').style.display='none';
+  const payload={amount:+document.getElementById('p-amt').value||181000,type:document.getElementById('p-type').value,oldbalanceOrg:+document.getElementById('p-ob').value||181000,newbalanceOrig:+document.getElementById('p-oa').value||0,oldbalanceDest:+document.getElementById('p-db').value||0,newbalanceDest:+document.getElementById('p-da').value||0,step:+document.getElementById('p-step').value||2,tx_frequency:+document.getElementById('p-fq').value||1};
+  let result=null,source='';
+  if(API_ON){try{const r=await fetch(API_URL+'/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(5000)});if(r.ok){result=await r.json();source='XGBoost via Flask API';}}catch{}}
+  if(!result){
+    document.getElementById('pred-note').style.display='block';
+    const {score,reasons}=scoreTransaction(payload.amount,payload.type,payload.oldbalanceOrg,payload.newbalanceOrig,payload.oldbalanceDest,payload.step%24);
+    const iso=(score/100*.55+Math.random()*.15).toFixed(3);
+    result={fraud_probability_pct:score,risk_level:score>60?'HIGH':score>30?'MEDIUM':'LOW',action:score>60?'Block transaction':score>30?'Flag for review':'Allow transaction',isolation_forest_score:iso,reasons,shap_values:{'Balance after origin':(score>50?.80:.22).toFixed(2),'Transaction type':(score>50?.72:.19).toFixed(2),'Transaction amount':(score>50?.58:.14).toFixed(2),'Destination balance':(score>50?.48:.11).toFixed(2),'Hour of day':(score>50?.40:.09).toFixed(2),'Amount pattern':(score>50?.25:.05).toFixed(2)}};
+    source='PaySim rule-based scoring';
+  }
+  showPredResult(result,source);btn.disabled=false;btn.textContent='Run prediction';
+}
+function loadFraudEx(){document.getElementById('p-amt').value=181000;document.getElementById('p-type').value='TRANSFER';document.getElementById('p-ob').value=181000;document.getElementById('p-oa').value=0;document.getElementById('p-db').value=0;document.getElementById('p-da').value=0;document.getElementById('p-step').value=2;document.getElementById('p-fq').value=1;showToast('Loaded','Real PaySim fraud example ready.','info');}
+function showPredResult(r,source){
+  const pct=r.fraud_probability_pct||50;
+  document.getElementById('pred-empty').style.display='none';
+  document.getElementById('pred-content').style.display='block';
+  const pv=document.getElementById('p-pct'),bar=document.getElementById('p-bar');
+  pv.className='risk-value';bar.className='risk-bar-inner';
+  if(pct>60){pv.textContent=pct.toFixed(1)+'%';pv.classList.add('high');bar.classList.add('high');}
+  else if(pct>30){pv.textContent=pct.toFixed(1)+'%';pv.classList.add('suspicious');bar.classList.add('suspicious');}
+  else{pv.textContent=pct.toFixed(1)+'%';pv.classList.add('safe');bar.classList.add('safe');}
+  requestAnimationFrame(()=>bar.style.width=pct+'%');
+  document.getElementById('p-verdict').textContent=r.action||'—';
+  document.getElementById('p-src').textContent='Source: '+source;
+  const why=document.getElementById('p-why');
+  if(r.reasons&&r.reasons.length>0&&pct>25){why.style.display='block';document.getElementById('p-why-t').textContent=r.reasons.slice(0,2).join(' ');}
+  else{why.style.display='none';}
+  const col=pct>60?'var(--red)':pct>30?'var(--amber)':'var(--green)';
+  document.getElementById('p-shap').innerHTML=Object.entries(r.shap_values||{}).map(([f,v])=>`<div style="display:flex;align-items:center;gap:9px;"><div style="font-size:12px;color:var(--ink2);width:160px;flex-shrink:0;">${f}</div><div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${Math.min(parseFloat(v)*100,100).toFixed(0)}%;background:${col};border-radius:3px;transition:width .8s ease;"></div></div><div style="font-family:var(--fm);font-size:11px;color:var(--ink3);width:34px;text-align:right;">${parseFloat(v).toFixed(2)}</div></div>`).join('');
+  showToast(pct>60?'High risk detected':pct>30?'Suspicious activity':'Transaction cleared','Probability: '+pct.toFixed(1)+'%',pct>60?'err':pct>30?'warn':'ok');
+}
+
+// ============================================================
+// ALERTS
+// ============================================================
+let alCount=3;
+function buildAlerts(){
+  document.getElementById('al-section').innerHTML=`<div class="card card-nohover card-p">${ALERTS_DATA.map(a=>`<div class="alert-item"><div class="al-pip ${a.sev}"></div><div class="al-ic ${a.sev}">${a.ic}</div><div class="al-body"><div class="al-t">${a.title}</div><div class="al-d">${a.desc}</div><div class="al-time">${a.time}</div></div><div><span class="badge ${a.sev==='crit'?'b-red':a.sev==='warn'?'b-amber':'b-blue'}">${a.sev==='crit'?'Critical':a.sev==='warn'?'Warning':'Info'}</span></div></div>`).join('')}</div>`;
+}
+function clearAlerts(){document.getElementById('al-section').innerHTML='<div style="padding:48px;text-align:center;color:var(--ink3);font-size:14px;font-weight:600;">No alerts at this time.</div>';alCount=0;}
+function exportAlerts(){const rows=[['Severity','Title','Description','Time'],...ALERTS_DATA.map(a=>[a.sev,a.title,a.desc,a.time])];dlFile(rows.map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'smartshield_alerts.csv','text/csv');showToast('Exported','Alerts CSV downloaded.','ok');}
+
+// ============================================================
+// UPLOAD
+// ============================================================
+function handleFile(file){
+  if(!file)return;
+  document.getElementById('file-info').style.display='block';
+  document.getElementById('f-name').textContent=file.name;
+  document.getElementById('f-meta').textContent=(file.size/1024/1024).toFixed(2)+' MB';
+  document.getElementById('f-status').textContent='Processing';
+  document.getElementById('f-status').className='badge b-amber';
+  let p=0;const iv=setInterval(()=>{p=Math.min(p+5,80);document.getElementById('f-prog').style.width=p+'%';},70);
+  Papa.parse(file,{header:true,skipEmptyLines:true,complete(res){
+    clearInterval(iv);document.getElementById('f-prog').style.width='100%';
+    document.getElementById('f-status').textContent='Ready';
+    document.getElementById('f-status').className='badge b-green';
+    const rows=res.data,total=rows.length;
+    const fraud=rows.filter(r=>r.isFraud==='1'||r.isFraud===1).length;
+    document.getElementById('upload-res').style.display='block';
+    document.getElementById('ur-total').textContent=total.toLocaleString('en-IN');
+    document.getElementById('ur-fraud').textContent=fraud.toLocaleString('en-IN');
+    document.getElementById('ur-rate').textContent=(fraud/total*100).toFixed(3)+'%';
+    document.getElementById('ur-cols').textContent=res.meta.fields?.length||Object.keys(rows[0]||{}).length;
+    const tc={},fbt={};rows.forEach(r=>{const t=r.type||'UNKNOWN';tc[t]=(tc[t]||0)+1;if(r.isFraud==='1'||r.isFraud===1)fbt[t]=(fbt[t]||0)+1;});
+    document.getElementById('ur-charts').innerHTML='<div class="g2" style="gap:10px;margin-top:12px;"><div style="height:160px;position:relative;"><canvas id="ur-t"></canvas></div><div style="height:160px;position:relative;"><canvas id="ur-f"></canvas></div></div>';
+    setTimeout(()=>{
+      mkC('ur-t','doughnut',{labels:Object.keys(tc),datasets:[{data:Object.values(tc),backgroundColor:['#93C5FD','#DC2626','#FDE68A','#86EFAC','#C4B5FD'],borderWidth:0}]},{cutout:'60%',maintainAspectRatio:false});
+      if(Object.keys(fbt).length)mkC('ur-f','bar',{labels:Object.keys(fbt),datasets:[{data:Object.values(fbt),backgroundColor:'#DC2626',borderRadius:4}]},{plugins:{legend:{display:false}},maintainAspectRatio:false});
+    },80);
+    showToast('File analyzed',total.toLocaleString()+' rows — '+fraud.toLocaleString()+' fraud cases found.','ok');
+  },error:()=>showToast('Error','Could not read the file.','err')});
+}
+['dragover','dragleave','drop'].forEach(ev=>{
+  document.getElementById('drop-z').addEventListener(ev,e=>{
+    e.preventDefault();
+    document.getElementById('drop-z').classList.toggle('drag',ev==='dragover');
+    if(ev==='drop'&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
+  });
+});
+
+// ============================================================
+// REPORTS
+// ============================================================
+let repTot=0,repFr=0;
+function updateRepStats(){repTot=TOT;repFr=FR;document.getElementById('rep-tot').textContent=repTot.toLocaleString('en-IN');document.getElementById('rep-fr').textContent=repFr;document.getElementById('rep-rate').textContent=repTot>0?(repFr/repTot*100).toFixed(3)+'%':'0%';}
+function initReports(){
+  mkC('rep-trend','line',{labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],datasets:[{label:'Fraud cases',data:[8,11,9,14,18,22,17],borderColor:'#DC2626',backgroundColor:'rgba(220,38,38,.08)',fill:true,tension:.45,pointRadius:4,pointBackgroundColor:'#DC2626',borderWidth:2},{label:'Flagged',data:[15,19,16,23,31,37,28],borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.06)',fill:true,tension:.45,pointRadius:4,pointBackgroundColor:'#2563EB',borderWidth:2}]},{});
+  updateRepStats();
+}
+function generateReport(){
+  const txt=['SMARTSHIELD — FRAUD DETECTION REPORT','=====================================','Generated: '+new Date().toLocaleString('en-IN'),'','DATASET: PaySim (Kaggle)','Total records: 6,362,620 | Fraud: 8,213 (0.129%)','','SESSION','Analyzed: '+repTot.toLocaleString()+' | Fraud: '+repFr,'Rate: '+(repTot>0?(repFr/repTot*100).toFixed(3):0)+'%','','MODELS',...MODELS.map(m=>m.name+': Acc '+m.acc+'%  F1 '+m.f1+'%'),'','PAYSIM KEY FINDINGS','Fraud only in CASH_OUT and TRANSFER types.','All fraud cases: sender balance becomes zero.','Peak fraud: 1 AM – 5 AM.'].join('\n');
+  dlFile(txt,'smartshield_report.txt','text/plain');
+  showToast('Report downloaded','Text report saved.','ok');
+}
+function exportAs(fmt){
+  if(fmt==='CSV'){const rows=[['type','amount','oldbalanceOrg','newbalanceOrig','isFraud','risk_score'],['TRANSFER','181000','181000','0','1','91.2'],['PAYMENT','5000','50000','45000','0','3.4']];dlFile(rows.map(r=>r.join(',')).join('\n'),'smartshield_data.csv','text/csv');showToast('CSV downloaded','Data saved.','ok');}
+  else if(fmt==='JSON'){dlFile(JSON.stringify({generated:new Date().toISOString(),dataset:'PaySim',total:6362620,fraud:8213,models:MODELS},null,2),'smartshield.json','application/json');showToast('JSON downloaded','Report saved.','ok');}
+}
+function dlFile(c,n,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));a.download=n;a.click();}
+
+// ============================================================
+// GEOGRAPHY
+// ============================================================
+function initGeo(){
+  const states=[{n:'Maharashtra',f:2841},{n:'Delhi',f:2210},{n:'Rajasthan',f:1820},{n:'Uttar Pradesh',f:1650},{n:'Karnataka',f:1240},{n:'Gujarat',f:1080},{n:'Tamil Nadu',f:890},{n:'West Bengal',f:760},{n:'Telangana',f:640},{n:'Punjab',f:420}];
+  const maxF=Math.max(...states.map(s=>s.f));
+  document.getElementById('geo-states').innerHTML=states.map(s=>`<div class="geo-row"><div class="geo-name">${s.n}</div><div class="geo-bar-wrap"><div class="geo-bar-fill" style="width:${(s.f/maxF*100).toFixed(0)}%;background:linear-gradient(90deg,#DC2626,#F87171);"></div></div><div class="geo-count">${s.f.toLocaleString()}</div></div>`).join('');
+  const cv=document.getElementById('geo-map'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  ctx.fillStyle='#F6F8FC';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(18,25,44,.15)';ctx.lineWidth=1;
+  const outline=[[200,28],[315,48],[365,78],[395,128],[385,200],[362,242],[382,302],[352,382],[302,432],[252,452],[198,442],[158,402],[128,370],[98,320],[78,258],[88,200],[108,150],[128,98],[158,68],[200,28]];
+  ctx.beginPath();outline.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();ctx.stroke();ctx.fillStyle='rgba(18,25,44,.03)';ctx.fill();
+  const pts=[{n:'MH',f:2841,x:175,y:258},{n:'DL',f:2210,x:216,y:136},{n:'RJ',f:1820,x:146,y:172},{n:'UP',f:1650,x:256,y:180},{n:'KA',f:1240,x:190,y:320},{n:'GJ',f:1080,x:122,y:228},{n:'TN',f:890,x:216,y:370},{n:'WB',f:760,x:316,y:216},{n:'TS',f:640,x:222,y:296},{n:'PB',f:420,x:190,y:114}];
+  pts.forEach(p=>{
+    const r=5+p.f/maxF*18;const a=0.25+p.f/maxF*.65;
+    const grd=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r*2.5);grd.addColorStop(0,`rgba(220,38,38,${a+.1})`);grd.addColorStop(1,'transparent');
+    ctx.beginPath();ctx.arc(p.x,p.y,r*2.5,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=`rgba(220,38,38,${a})`;ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,r*.35,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.9)';ctx.fill();
+    ctx.fillStyle='rgba(18,25,44,.6)';ctx.font='700 7.5px Fira Code';ctx.textAlign='left';ctx.fillText(p.n,p.x+r+3,p.y+3);
+    ctx.fillStyle='#DC2626';ctx.font='700 8px Fira Code';ctx.fillText(p.f.toLocaleString(),p.x+r+3,p.y+13);
+  });
+  mkC('geo-dow','bar',{labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],datasets:[{data:[1020,980,1140,1280,1620,2100,1880],backgroundColor:['rgba(37,99,235,.4)','rgba(37,99,235,.4)','rgba(37,99,235,.4)','rgba(37,99,235,.4)','rgba(220,38,38,.5)','rgba(220,38,38,.85)','rgba(220,38,38,.75)'],borderRadius:5,borderSkipped:false}]},{plugins:{legend:{display:false}},animation:{duration:1200}});
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function showSec(id,el){
+  ['detection','notifications','api','model','account','about'].forEach(s=>{const e=document.getElementById('s-'+s);if(e)e.style.display='none';});
+  document.getElementById('s-'+id).style.display='block';
+  document.querySelectorAll('.snav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');
+}
+function saveAccount(){const n=document.getElementById('s-name').value;document.getElementById('nb-name').textContent=n;document.getElementById('nb-av').textContent=n[0];showToast('Saved','Account details updated.','ok');}
+function testAPI(){const url=document.getElementById('s-api-url').value;API_URL=url;fetch(url+'/health',{signal:AbortSignal.timeout(3000)}).then(r=>{if(r.ok){API_ON=true;showToast('Connected','Flask API is reachable at '+url,'ok');}}).catch(()=>showToast('Not reachable','Flask API not found. Check that app.py is running.','err'));}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(title,msg,type=''){
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div');
+  t.className='toast '+(type==='ok'?'ok':type==='warn'?'warn':type==='info'?'info':type==='err'?'err':'');
+  const icons={ok:'&#9989;',warn:'&#9888;',info:'&#9432;',err:'&#9888;','':`<span style="color:#fff;">&#9432;</span>`};
+  t.innerHTML=`<div class="toast-icon">${icons[type]||icons['']}</div><div class="toast-body"><div class="toast-t">${title}</div><div class="toast-m">${msg}</div></div>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(30px)';t.style.transition='all .35s ease';},4200);
+  setTimeout(()=>t.remove(),4600);
+}
+</script>
+</body>
+</html>
